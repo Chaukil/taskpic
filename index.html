@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Quản Lý Công Việc</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-check2-square me-2"></i>
+                Quản Lý Công Việc
+            </a>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Thanh tìm kiếm và thêm công việc -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="input-group input-group-lg">
+                    <span class="input-group-text bg-white border-end-0">
+                        <i class="bi bi-search"></i>
+                    </span>
+                    <input type="text" class="form-control border-start-0" id="searchInput" 
+                           placeholder="Tìm kiếm công việc...">
+                </div>
+            </div>
+            <div class="col-md-6 text-end">
+                <button class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#taskModal">
+                    <i class="bi bi-plus-lg me-2"></i>Thêm Công Việc Mới
+                </button>
+            </div>
+        </div>
+
+        
+
+        <!-- Bộ lọc trạng thái -->
+         <div class="row mb-4">
+            <div class="col-md-6">
+        <div class="btn-group mb-4" role="group" aria-label="Bộ lọc công việc">
+            <input type="radio" class="btn-check" name="status-filter" id="all" checked>
+            <label class="btn btn-outline-primary" for="all">
+                <i class="bi bi-collection me-2"></i>Tất cả
+            </label>
+
+            <input type="radio" class="btn-check" name="status-filter" id="pending">
+            <label class="btn btn-outline-warning" for="pending">
+                <i class="bi bi-hourglass-split me-2"></i>Đang thực hiện
+            </label>
+
+            <input type="radio" class="btn-check" name="status-filter" id="completed">
+            <label class="btn btn-outline-success" for="completed">
+                <i class="bi bi-check2-all me-2"></i>Đã hoàn thành
+            </label>
+        </div>
+        </div>
+        <div class="col-md-6 text-end">
+        <div class="action-buttons mb-4">
+    <button class="btn btn-success" id="completeAllBtn">
+        <i class="bi bi-check-all me-2"></i>Hoàn thành tất cả
+    </button>
+    <button class="btn btn-primary" id="newDayBtn">
+        <i class="bi bi-sunrise me-2"></i>Bắt đầu ngày mới
+    </button>
+    </div>
+</div>
+</div>
+        <!-- Danh sách công việc -->
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div id="taskList" class="list-group">
+                    <!-- Tasks will be dynamically added here -->
+                </div>
+                
+                <!-- Phân trang -->
+                <nav aria-label="Phân trang" class="mt-4">
+                    <ul class="pagination justify-content-center" id="pagination">
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Modal -->
+<div class="modal fade" id="taskModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-plus-circle me-2"></i>Thêm Công Việc Mới
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="taskForm">
+                    <div class="row mb-4">
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-pencil me-2"></i>Tên công việc
+                            </label>
+                            <input type="text" class="form-control form-control-lg" id="taskTitle" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-flag me-2"></i>Mức độ ưu tiên
+                            </label>
+                            <select class="form-select form-select-lg" id="taskPriority">
+                                <option value="low">Thấp</option>
+                                <option value="medium">Trung bình</option>
+                                <option value="high">Cao</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-text-paragraph me-2"></i>Mô tả
+                        </label>
+                        <textarea class="form-control task-description-input" id="taskDescription" rows="6"></textarea>
+                        <small class="text-muted">
+                            Hỗ trợ định dạng: <br>
+                            - Gạch đầu dòng: Bắt đầu với dấu "-"<br>
+                            - In đậm: **text**<br>
+                            - In nghiêng: *text*<br>
+                            - Xuống dòng: Enter
+                        </small>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-folder me-2"></i>Danh sách đường dẫn
+                        </label>
+                        <div id="pathsList" class="path-list mb-2"></div>
+                        <button type="button" class="btn btn-outline-primary" id="addPathBtn">
+                            <i class="bi bi-plus-lg me-2"></i>Thêm đường dẫn
+                        </button>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-clock me-2"></i>Giờ bắt đầu
+                            </label>
+                            <input type="time" class="form-control form-control-lg" id="startTime" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-clock-history me-2"></i>Giờ kết thúc
+                            </label>
+                            <input type="time" class="form-control form-control-lg" id="endTime">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary btn-lg" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-2"></i>Hủy
+                </button>
+                <button type="submit" form="taskForm" class="btn btn-primary btn-lg">
+                    <i class="bi bi-check-circle me-2"></i>Lưu
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="taskToast" class="toast" role="alert">
+            <div class="toast-header">
+                <i class="bi bi-info-circle me-2"></i>
+                <strong class="me-auto">Thông báo</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module" src="script.js"></script>
+</body>
+</html>
