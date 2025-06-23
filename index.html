@@ -1,187 +1,243 @@
 <!DOCTYPE html>
 <html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hệ Thống Quản Lý Công Việc</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container">
-            <a class="navbar-brand" href="#">
-                <i class="bi bi-check2-square me-2"></i>
-                Quản Lý Công Việc
-            </a>
-        </div>
-    </nav>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ghi Chú Tinh Tế</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
 
-    <div class="container mt-4">
-        <!-- Thanh tìm kiếm và thêm công việc -->
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="input-group input-group-lg">
-                    <span class="input-group-text bg-white border-end-0">
-                        <i class="bi bi-search"></i>
-                    </span>
-                    <input type="text" class="form-control border-start-0" id="searchInput" 
-                           placeholder="Tìm kiếm công việc...">
-                </div>
-            </div>
-            <div class="col-md-6 text-end">
-                <button class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#taskModal">
-                    <i class="bi bi-plus-lg me-2"></i>Thêm Công Việc Mới
-                </button>
-            </div>
-        </div>
-
-        
-
-        <!-- Bộ lọc trạng thái -->
-         <div class="row mb-4">
-            <div class="col-md-6">
-        <div class="btn-group mb-4" role="group" aria-label="Bộ lọc công việc">
-            <input type="radio" class="btn-check" name="status-filter" id="all" checked>
-            <label class="btn btn-outline-primary" for="all">
-                <i class="bi bi-collection me-2"></i>Tất cả
-            </label>
-
-            <input type="radio" class="btn-check" name="status-filter" id="pending">
-            <label class="btn btn-outline-warning" for="pending">
-                <i class="bi bi-hourglass-split me-2"></i>Đang thực hiện
-            </label>
-
-            <input type="radio" class="btn-check" name="status-filter" id="completed">
-            <label class="btn btn-outline-success" for="completed">
-                <i class="bi bi-check2-all me-2"></i>Đã hoàn thành
-            </label>
-        </div>
-        </div>
-        <div class="col-md-6 text-end">
-        <div class="action-buttons mb-4">
-    <button class="btn btn-success" id="completeAllBtn">
-        <i class="bi bi-check-all me-2"></i>Hoàn thành tất cả
+  <body>
+    <div class="container">
+      <header class="header">
+        <button id="settingsBtn" class="settings-btn">
+        <i class="fas fa-cog"></i>
     </button>
-    <button class="btn btn-primary" id="newDayBtn">
-        <i class="bi bi-sunrise me-2"></i>Bắt đầu ngày mới
-    </button>
-    </div>
-</div>
-</div>
-        <!-- Danh sách công việc -->
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <div id="taskList" class="list-group">
-                    <!-- Tasks will be dynamically added here -->
+        <h1>Ghi Chú Tinh Tế</h1>
+        <p>Lưu trữ suy nghĩ và ý tưởng của bạn một cách phong cách</p>
+      </header>
+
+      <div class="controls">
+        <div class="controls-container">
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Tìm kiếm ghi chú..."
+            class="search-input"
+          />
+          <div class="filter-group">
+            <select id="filterSelect" class="filter-select">
+              <option value="all">Tất cả ghi chú</option>
+              <option value="completed">Đã hoàn thành</option>
+            </select>
+            <button id="addNoteBtn" class="add-btn">
+              <i class="fas fa-plus"></i> Thêm mới
+            </button>
+            <button id="completeAllBtn" class="action-btn complete-all-btn">
+              <i class="fas fa-check-double"></i> Hoàn thành tất cả
+            </button>
+            <button id="resetAllBtn" class="action-btn reset-all-btn">
+              <i class="fas fa-redo"></i> Bắt đầu ngày mới
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="notesContainer" class="notes-grid">
+        </div>
+
+      <div id="emptyState" class="empty-state">
+        <i class="fas fa-notes-medical"></i>
+        <h3>Không có ghi chú</h3>
+        <p>Thêm ghi chú đầu tiên của bạn bằng cách nhấp vào nút "Thêm"</p>
+      </div>
+
+      <div id="addNoteModal" class="modal-overlay">
+        <div class="modal">
+          <div class="modal-header">
+            <h3 class="modal-title" id="modalTitle">Ghi chú mới</h3>
+            <button id="closeModalBtn" class="modal-close">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <form id="noteForm" class="modal-body">
+            <div class="form-group">
+              <label for="noteTitle" class="form-label">Tiêu đề</label>
+              <input type="text" id="noteTitle" class="form-input" required />
+            </div>
+            <div class="form-group">
+              <label for="noteContent" class="form-label">Nội dung</label>
+              <textarea
+                id="noteContent"
+                class="form-input form-textarea"
+                required
+              ></textarea>
+            </div>
+            <div class="form-group">
+              <label for="noteTime" class="form-label">Thời gian</label>
+              <input type="time" id="noteTime" class="form-input" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Thẻ</label>
+              <div id="noteTagsContainer" class="tags-container">
                 </div>
-                
-                <!-- Phân trang -->
-                <nav aria-label="Phân trang" class="mt-4">
-                    <ul class="pagination justify-content-center" id="pagination">
-                    </ul>
-                </nav>
+              <button type="button" id="manageTagsBtn" class="action-btn small-btn">
+                <i class="fas fa-tags"></i> Quản lý Thẻ
+              </button>
             </div>
+            <button type="submit" class="submit-btn" id="submitNoteBtn">
+              Lưu ghi chú
+            </button>
+          </form>
         </div>
-    </div>
+      </div>
 
-    <!-- Task Modal -->
-<div class="modal fade" id="taskModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title">
-                    <i class="bi bi-plus-circle me-2"></i>Thêm Công Việc Mới
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      <div id="viewNoteModal" class="modal-overlay">
+        <div class="modal">
+          <div class="modal-header">
+            <h3 class="modal-title" id="viewNoteTitle"></h3>
+            <button id="closeViewModalBtn" class="modal-close">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="view-meta-row">
+              <div class="meta-item">
+                <label class="form-label">Thẻ:</label>
+                <span id="viewNoteTag" class="view-content note-tag"></span>
+              </div>
+              <div class="meta-item">
+                <label class="form-label">Trạng thái:</label>
+                <span id="viewNoteStatus" class="view-content"></span>
+              </div>
+              <div class="meta-item">
+                <label class="form-label">Thời gian:</label>
+                <p id="viewNoteTime" class="view-content"></p>
+              </div>
             </div>
-            <div class="modal-body p-4">
-                <form id="taskForm">
-                    <div class="row mb-4">
-                        <div class="col-md-8">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-pencil me-2"></i>Tên công việc
-                            </label>
-                            <input type="text" class="form-control form-control-lg" id="taskTitle" required>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-flag me-2"></i>Mức độ ưu tiên
-                            </label>
-                            <select class="form-select form-select-lg" id="taskPriority">
-                                <option value="low">Thấp</option>
-                                <option value="medium">Trung bình</option>
-                                <option value="high">Cao</option>
-                            </select>
-                        </div>
-                    </div>
 
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">
-                            <i class="bi bi-text-paragraph me-2"></i>Mô tả
-                        </label>
-                        <textarea class="form-control task-description-input" id="taskDescription" rows="6"></textarea>
-                        <small class="text-muted">
-                            Hỗ trợ định dạng: <br>
-                            - Gạch đầu dòng: Bắt đầu với dấu "-"<br>
-                            - In đậm: **text**<br>
-                            - In nghiêng: *text*<br>
-                            - Xuống dòng: Enter
-                        </small>
-                    </div>
-
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">
-                            <i class="bi bi-folder me-2"></i>Danh sách đường dẫn
-                        </label>
-                        <div id="pathsList" class="path-list mb-2"></div>
-                        <button type="button" class="btn btn-outline-primary" id="addPathBtn">
-                            <i class="bi bi-plus-lg me-2"></i>Thêm đường dẫn
-                        </button>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-clock me-2"></i>Giờ bắt đầu
-                            </label>
-                            <input type="time" class="form-control form-control-lg" id="startTime" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-clock-history me-2"></i>Giờ kết thúc
-                            </label>
-                            <input type="time" class="form-control form-control-lg" id="endTime">
-                        </div>
-                    </div>
-                </form>
+            <div class="form-group">
+              <label class="form-label">Nội dung:</label>
+              <p id="viewNoteContent" class="view-content"></p>
             </div>
-            <div class="modal-footer bg-light">
-                <button type="button" class="btn btn-secondary btn-lg" data-bs-dismiss="modal">
-                    <i class="bi bi-x-circle me-2"></i>Hủy
-                </button>
-                <button type="submit" form="taskForm" class="btn btn-primary btn-lg">
-                    <i class="bi bi-check-circle me-2"></i>Lưu
-                </button>
+
+            <div id="viewNoteActions" class="form-group"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="confirmModal" class="modal-overlay">
+        <div class="modal confirmation-modal">
+          <div class="modal-body">
+            <p class="confirmation-text">
+              Bạn có chắc chắn muốn xóa ghi chú này không?
+            </p>
+            <div class="confirmation-buttons">
+              <button id="cancelDeleteBtn" class="confirmation-btn cancel-btn">
+                Hủy
+              </button>
+              <button
+                id="confirmDeleteBtn"
+                class="confirmation-btn confirm-btn"
+              >
+                Xóa
+              </button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="manageTagsModal" class="modal-overlay">
+        <div class="modal">
+          <div class="modal-header">
+            <h3 class="modal-title">Quản lý Thẻ Ghi Chú</h3>
+            <button id="closeManageTagsModalBtn" class="modal-close">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="newTagName" class="form-label">Tên Thẻ Mới/Sửa</label>
+              <input type="text" id="newTagName" class="form-input" placeholder="Ví dụ: Du lịch" />
+            </div>
+            <div class="form-group">
+              <label for="newTagIcon" class="form-label">Icon (Font Awesome class)</label>
+              <input type="text" id="newTagIcon" class="form-input" placeholder="Ví dụ: fas fa-plane" />
+              <p class="help-text">Tìm icon tại: <a href="https://fontawesome.com/v5/search?m=free" target="_blank">Font Awesome Free</a> (chỉ copy class, ví dụ: `fas fa-plane`)</p>
+            </div>
+            <div class="form-group">
+              <label for="newTagColor" class="form-label">Màu Thẻ</label>
+              <input type="color" id="newTagColor" class="form-input color-input" value="#4f46e5" />
+              <p class="help-text">Chọn màu nền cho thẻ.</p>
+            </div>
+            <button id="addOrUpdateTagBtn" class="submit-btn small-btn">Thêm Thẻ</button>
+            <hr style="margin: 20px 0;">
+            <h4>Các Thẻ Hiện Có:</h4>
+            <div id="currentTagsList" class="tags-list">
+              </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="settingsModal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 class="modal-title">Cài đặt</h3>
+            <button id="closeSettingsModalBtn" class="modal-close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="noteColumns" class="form-label">Số cột hiển thị ghi chú:</label>
+                <select id="noteColumns" class="form-input">
+                    <option value="1">1 cột</option>
+                    <option value="2">2 cột</option>
+                    <option value="3">3 cột</option>
+                    <option value="4">4 cột</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="backgroundColor" class="form-label">Màu nền trang web:</label>
+                <input type="color" id="backgroundColor" class="form-input color-input" value="#f8f9fa" />
+            </div>
+            <div class="form-group">
+                <label for="languageSelect" class="form-label">Ngôn ngữ:</label>
+                <select id="languageSelect" class="form-input">
+                    <option value="vi">Tiếng Việt</option>
+                    <option value="en">English</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="notificationTimeBefore" id="notificationTimeBeforeLabel" class="form-label" data-lang="notificationTimeBefore">Thông báo trước (phút):</label>
+                <select id="notificationTimeBefore" class="form-input">
+                    <option value="0">Không thông báo</option>
+                    <option value="5">5 phút</option>
+                    <option value="10">10 phút</option>
+                    <option value="15">15 phút</option>
+                    <option value="30">30 phút</option>
+                    <option value="60">60 phút</option>
+                </select>
+            </div>
+            <button id="saveSettingsBtn" class="submit-btn small-btn">Lưu Cài đặt</button>
         </div>
     </div>
 </div>
-
-    <!-- Toast Notifications -->
-    <div class="toast-container position-fixed bottom-0 end-0 p-3">
-        <div id="taskToast" class="toast" role="alert">
-            <div class="toast-header">
-                <i class="bi bi-info-circle me-2"></i>
-                <strong class="me-auto">Thông báo</strong>
-                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
-            </div>
-            <div class="toast-body"></div>
-        </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script type="module" src="script.js"></script>
-</body>
+    <div id="toastContainer" class="toast-container"></div>
+
+    <footer class="footer">
+      <p>&copy; 2025 Lập trình và phát triển web - Châu Kil</p>
+    </footer>
+
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    <script src="./index.js"></script>
+  </body>
 </html>
