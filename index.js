@@ -148,7 +148,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const translations = {
     'vi': {
-        'appName': 'Ghi Chú Tinh Tế',
+        'appName': 'Châu Chí Kil',
         'appSlogan': 'Lưu trữ suy nghĩ và ý tưởng của bạn một cách phong cách',
         'searchInputPlaceholder': 'Tìm kiếm ghi chú...',
         'allNotesOption': 'Tất cả ghi chú',
@@ -230,7 +230,7 @@ document.addEventListener("DOMContentLoaded", function () {
             notificationReminder: "Nhắc nhở: Đến giờ '{title}'"
     },
     'en': {
-        'appName': 'Elegant Notes',
+        'appName': 'Chau Chi Kil',
         'appSlogan': 'Store your thoughts and ideas with style',
         'searchInputPlaceholder': 'Search notes...',
         'allNotesOption': 'All notes',

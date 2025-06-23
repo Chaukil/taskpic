@@ -872,6 +872,9 @@ input[type="time"]:focus {
         width: 100%;
         min-width: unset; /* Bỏ min-width trên màn hình nhỏ để không bị tràn */
     }
+    .submit-btn {
+        margin: 10px auto 0 90px;
+    }
 }
 
 .toast-container {
