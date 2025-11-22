@@ -1,243 +1,521 @@
 <!DOCTYPE html>
 <html lang="vi">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ghi Chú Tinh Tế</title>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
-    <link rel="stylesheet" href="./style.css" />
-  </head>
 
-  <body>
-    <div class="container">
-      <header class="header">
-        <button id="settingsBtn" class="settings-btn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ghi Chú Tinh Tế</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+  <div class="container">
+    <header class="header">
+      <button id="settingsBtn" class="settings-btn">
         <i class="fas fa-cog"></i>
-    </button>
-        <h1>Châu Chí Kil</h1>
-        <p>Lưu trữ suy nghĩ và ý tưởng của bạn một cách phong cách</p>
-      </header>
+      </button>
+      <h1>Châu Chí Kil</h1>
+      <p>Lưu trữ suy nghĩ và ý tưởng của bạn một cách phong cách</p>
 
-      <div class="controls">
-        <div class="controls-container">
-          <input
-            type="text"
-            id="searchInput"
-            placeholder="Tìm kiếm ghi chú..."
-            class="search-input"
-          />
-          <div class="filter-group">
-            <select id="filterSelect" class="filter-select">
-              <option value="all">Tất cả ghi chú</option>
-              <option value="completed">Đã hoàn thành</option>
+      <!-- MỚI: Đồng hồ ngày giờ -->
+      <div class="datetime-display" id="datetimeDisplay">
+        <div class="date-part" id="datePart">
+          <i class="fas fa-calendar-alt"></i>
+          <span id="dateText"></span>
+        </div>
+        <div class="time-part" id="timePart">
+          <i class="fas fa-clock"></i>
+          <span id="timeText"></span>
+        </div>
+      </div>
+    </header>
+
+
+    <div class="controls">
+      <div class="controls-container">
+
+        <!-- Hàng 1: Tìm kiếm và Lọc -->
+        <div class="search-filter-row">
+          <input type="text" id="searchInput" placeholder="Tìm kiếm ghi chú..." class="search-input" />
+
+          <select id="dayOfWeekSelect" class="filter-select">
+            <option value="all">Tất cả các ngày</option>
+            <option value="0">Chủ Nhật</option>
+            <option value="1">Thứ Hai</option>
+            <option value="2">Thứ Ba</option>
+            <option value="3">Thứ Tư</option>
+            <option value="4">Thứ Năm</option>
+            <option value="5">Thứ Sáu</option>
+            <option value="6">Thứ Bảy</option>
+          </select>
+
+          <select id="filterSelect" class="filter-select">
+            <option value="all">Tất cả ghi chú</option>
+            <option value="incomplete">Chưa hoàn thành</option>
+            <option value="completed">Đã hoàn thành</option>
+            <option value="overdue">Trễ giờ</option>
+          </select>
+        </div>
+
+        <!-- Hàng 2: Các nút chức năng -->
+        <div class="action-buttons-row">
+          <button id="addNoteBtn" class="add-btn">
+            <i class="fas fa-plus"></i> Thêm mới
+          </button>
+          <button id="exportExcelBtn" class="action-btn export-excel-btn">
+            <i class="fas fa-file-excel"></i> Xuất Excel
+          </button>
+          <button id="completeAllBtn" class="action-btn complete-all-btn">
+            <i class="fas fa-check-double"></i> Hoàn thành tất cả
+          </button>
+          <button id="resetAllBtn" class="action-btn reset-all-btn">
+            <i class="fas fa-redo"></i> Bắt đầu ngày mới
+          </button>
+          <button id="timeReportsBtn" class="action-btn time-reports-btn">
+            <i class="fas fa-chart-line"></i> Báo cáo thời gian
+          </button>
+          <button id="scanQRBtn" class="action-btn scan-qr-btn">
+            <i class="fas fa-qrcode"></i> Quét QR
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+
+
+    <div id="notesContainer" class="notes-grid">
+    </div>
+
+    <div id="emptyState" class="empty-state">
+      <i class="fas fa-notes-medical"></i>
+      <h3>Không có ghi chú</h3>
+      <p>Thêm ghi chú đầu tiên của bạn bằng cách nhấp vào nút "Thêm"</p>
+    </div>
+
+    <div id="addNoteModal" class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title" id="modalTitle">Ghi chú mới</h3>
+          <button id="closeModalBtn" class="modal-close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <form id="noteForm" class="modal-body">
+          <div class="form-group">
+            <label for="noteTitle" class="form-label">Tiêu đề</label>
+            <input type="text" id="noteTitle" class="form-input" required />
+          </div>
+          <div class="form-group">
+            <label for="noteDayOfWeek" id="noteDayOfWeekLabel" class="form-label">Ngày trong tuần</label>
+            <select id="noteDayOfWeek" class="form-input">
+              <option value="0">Chủ Nhật</option>
+              <option value="1">Thứ Hai</option>
+              <option value="2">Thứ Ba</option>
+              <option value="3">Thứ Tư</option>
+              <option value="4">Thứ Năm</option>
+              <option value="5">Thứ Sáu</option>
+              <option value="6">Thứ Bảy</option>
             </select>
-            <button id="addNoteBtn" class="add-btn">
-              <i class="fas fa-plus"></i> Thêm mới
+          </div>
+          <div class="form-group">
+            <label for="noteContent" class="form-label">Nội dung</label>
+            <textarea id="noteContent" class="form-input form-textarea" required></textarea>
+          </div>
+          <div class="form-group">
+            <label for="noteTime" class="form-label">Thời gian</label>
+            <input type="time" id="noteTime" class="form-input" required />
+          </div>
+          <div class="form-group">
+            <label for="expectedDuration" id="expectedDurationLabel" class="form-label">Thời gian dự kiến (phút)</label>
+            <input type="number" id="expectedDuration" class="form-input" min="5" step="5" placeholder="30" />
+            <!-- SỬA DÒNG DƯỚI ĐÂY: Thêm id="helpExpectedDuration" -->
+            <p class="help-text" id="helpExpectedDuration">Ước tính thời gian cần để hoàn thành (5, 10, 15, 30, 60
+              phút...)</p>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Thẻ</label>
+            <div id="noteTagsContainer" class="tags-container">
+            </div>
+            <button type="button" id="manageTagsBtn" class="action-btn small-btn">
+              <i class="fas fa-tags"></i> Quản lý Thẻ
             </button>
-            <button id="completeAllBtn" class="action-btn complete-all-btn">
-              <i class="fas fa-check-double"></i> Hoàn thành tất cả
+          </div>
+          <button type="submit" class="submit-btn" id="submitNoteBtn">
+            Lưu ghi chú
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div id="viewNoteModal" class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title" id="viewNoteTitle"></h3>
+          <button id="closeViewModalBtn" class="modal-close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="view-meta-row">
+            <div class="meta-item">
+              <label class="form-label">Thẻ:</label>
+              <span id="viewNoteTag" class="view-content note-tag"></span>
+            </div>
+            <div class="meta-item">
+              <label class="form-label">Trạng thái:</label>
+              <span id="viewNoteStatus" class="view-content"></span>
+            </div>
+            <div class="meta-item">
+              <label class="form-label">Thời gian:</label>
+              <p id="viewNoteTime" class="view-content"></p>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Nội dung:</label>
+            <p id="viewNoteContent" class="view-content"></p>
+          </div>
+
+          <div id="viewNoteActions" class="form-group"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="confirmModal" class="modal-overlay">
+      <div class="modal confirmation-modal">
+        <div class="modal-body">
+          <p class="confirmation-text">
+            Bạn có chắc chắn muốn xóa ghi chú này không?
+          </p>
+          <div class="confirmation-buttons">
+            <button id="cancelDeleteBtn" class="confirmation-btn cancel-btn">
+              Hủy
             </button>
-            <button id="resetAllBtn" class="action-btn reset-all-btn">
-              <i class="fas fa-redo"></i> Bắt đầu ngày mới
+            <button id="confirmDeleteBtn" class="confirmation-btn confirm-btn">
+              Xóa
             </button>
           </div>
         </div>
       </div>
+    </div>
 
-      <div id="notesContainer" class="notes-grid">
+    <div id="manageTagsModal" class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title">Quản lý Thẻ Ghi Chú</h3>
+          <button id="closeManageTagsModalBtn" class="modal-close">
+            <i class="fas fa-times"></i>
+          </button>
         </div>
-
-      <div id="emptyState" class="empty-state">
-        <i class="fas fa-notes-medical"></i>
-        <h3>Không có ghi chú</h3>
-        <p>Thêm ghi chú đầu tiên của bạn bằng cách nhấp vào nút "Thêm"</p>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="newTagName" class="form-label">Tên Thẻ Mới/Sửa</label>
+            <input type="text" id="newTagName" class="form-input" placeholder="Ví dụ: Du lịch" />
+          </div>
+          <div class="form-group">
+            <label for="newTagNameEn" class="form-label">Tag Name (English)</label>
+            <input type="text" id="newTagNameEn" class="form-input" placeholder="Example: Work" />
+          </div>
+          <div class="form-group">
+            <label for="newTagIcon" class="form-label">Icon (Font Awesome class)</label>
+            <input type="text" id="newTagIcon" class="form-input" placeholder="Ví dụ: fas fa-plane" />
+            <p class="help-text" id="helpTextIcon">Tìm icon tại: <a href="https://fontawesome.com/v5/search?m=free"
+                target="_blank">Font Awesome Free</a> (chỉ copy class, ví dụ: `fas fa-plane`)</p>
+          </div>
+          <div class="form-group">
+            <label for="newTagColor" class="form-label">Màu Thẻ</label>
+            <input type="color" id="newTagColor" class="form-input color-input" value="#4f46e5" />
+            <p class="help-text" id="helpTextColor">Chọn màu nền cho thẻ.</p>
+          </div>
+          <button id="addOrUpdateTagBtn" class="submit-btn small-btn">Thêm Thẻ</button>
+          <hr style="margin: 20px 0;">
+          <h4>Các Thẻ Hiện Có:</h4>
+          <div id="currentTagsList" class="tags-list">
+          </div>
+        </div>
       </div>
+    </div>
 
-      <div id="addNoteModal" class="modal-overlay">
-        <div class="modal">
-          <div class="modal-header">
-            <h3 class="modal-title" id="modalTitle">Ghi chú mới</h3>
-            <button id="closeModalBtn" class="modal-close">
-              <i class="fas fa-times"></i>
-            </button>
+    <div id="qrScannerModal" class="modal-overlay">
+      <div class="modal qr-modal">
+        <div class="modal-header">
+          <h3 class="modal-title" id="qrScannerTitle">Quét mã QR ghi chú</h3>
+          <button id="closeQRScannerBtn" class="modal-close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <!-- Camera Scanner -->
+          <div id="qrScannerContainer" class="qr-scanner-container">
+            <div id="qrReader"></div>
           </div>
 
-          <form id="noteForm" class="modal-body">
-            <div class="form-group">
-              <label for="noteTitle" class="form-label">Tiêu đề</label>
-              <input type="text" id="noteTitle" class="form-input" required />
-            </div>
-            <div class="form-group">
-              <label for="noteContent" class="form-label">Nội dung</label>
-              <textarea
-                id="noteContent"
-                class="form-input form-textarea"
-                required
-              ></textarea>
-            </div>
-            <div class="form-group">
-              <label for="noteTime" class="form-label">Thời gian</label>
-              <input type="time" id="noteTime" class="form-input" required />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Thẻ</label>
-              <div id="noteTagsContainer" class="tags-container">
-                </div>
-              <button type="button" id="manageTagsBtn" class="action-btn small-btn">
-                <i class="fas fa-tags"></i> Quản lý Thẻ
+          <!-- Upload Image & Paste Link Option -->
+          <div class="qr-upload-section">
+            <!-- THÊM ID VÀO DÒNG DƯỚI ĐÂY -->
+            <p id="qrOtherOptionsText" class="text-center" style="color: #6b7280; margin-bottom: 15px;">
+              Tùy chọn khác
+            </p>
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+              <input type="file" id="qrImageUpload" accept="image/*" style="display: none;" />
+              <button id="uploadQRImageBtn" class="action-btn" style="flex: 1;">
+                <i class="fas fa-image"></i> Chọn ảnh
+              </button>
+              <!-- MỚI: Nút nhập từ bộ nhớ tạm -->
+              <button id="pasteLinkBtn" class="action-btn" style="flex: 1; background-color: #f59e0b;">
+                <i class="fas fa-paste"></i> Nhập link
               </button>
             </div>
-            <button type="submit" class="submit-btn" id="submitNoteBtn">
-              Lưu ghi chú
-            </button>
+          </div>
+
+          <!-- Scanned Result -->
+          <div id="qrScanResult" class="qr-scan-result" style="display: none;">
+            <div class="success-message">
+              <i class="fas fa-check-circle"></i>
+              <p>Đã quét thành công!</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- QR Code Generator Modal -->
+    <div id="qrGeneratorModal" class="modal-overlay">
+      <div class="modal qr-modal">
+        <div class="modal-header">
+          <h3 class="modal-title" id="qrGeneratorTitle">Mã QR của ghi chú</h3>
+          <button id="closeQRGeneratorBtn" class="modal-close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="qr-generator-content">
+            <!-- Note Info -->
+            <div class="qr-note-info">
+              <h4 id="qrNoteTitle"></h4>
+              <p id="qrNoteContent"></p>
+              <div class="qr-note-meta">
+                <span id="qrNoteTime"><i class="fas fa-clock"></i> </span>
+                <span id="qrNoteTag"><i class="fas fa-tag"></i> </span>
+              </div>
+            </div>
+
+            <!-- QR Code Display -->
+            <div class="qr-code-display">
+              <canvas id="qrCodeCanvas"></canvas>
+            </div>
+
+            <!-- Download Button -->
+            <div class="qr-actions">
+              <button id="downloadQRBtn" class="action-btn">
+                <i class="fas fa-download"></i> Tải ảnh QR
+              </button>
+              <button id="copyQRLinkBtn" class="action-btn">
+                <i class="fas fa-link"></i> Sao chép link
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Note from QR Modal -->
+    <div id="addFromQRModal" class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title" id="addFromQRTitle">Xác nhận thêm ghi chú</h3>
+          <button id="closeAddFromQRBtn" class="modal-close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p style="color: #6b7280; margin-bottom: 20px;">
+            Ghi chú được quét từ mã QR. Vui lòng xem lại thông tin:
+          </p>
+
+          <form id="addFromQRForm">
+            <div class="form-group">
+              <label for="qrNoteTitle" class="form-label">Tiêu đề</label>
+              <input type="text" id="qrNoteTitleInput" class="form-input" required />
+            </div>
+
+            <div class="form-group">
+              <label for="qrNoteDayOfWeek" class="form-label">Ngày trong tuần</label>
+              <select id="qrNoteDayOfWeek" class="form-input">
+                <option value="0">Chủ Nhật</option>
+                <option value="1">Thứ Hai</option>
+                <option value="2">Thứ Ba</option>
+                <option value="3">Thứ Tư</option>
+                <option value="4">Thứ Năm</option>
+                <option value="5">Thứ Sáu</option>
+                <option value="6">Thứ Bảy</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="qrNoteContentInput" class="form-label">Nội dung</label>
+              <textarea id="qrNoteContentInput" class="form-input form-textarea" required></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="qrNoteTimeInput" class="form-label">Thời gian</label>
+              <input type="time" id="qrNoteTimeInput" class="form-input" required />
+            </div>
+
+            <div class="form-group">
+              <label for="qrExpectedDuration" class="form-label">Thời gian dự kiến (phút)</label>
+              <input type="number" id="qrExpectedDuration" class="form-input" min="5" step="5" placeholder="30" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Thẻ</label>
+              <div id="qrNoteTagsContainer" class="tags-container"></div>
+            </div>
+
+            <div class="confirmation-buttons">
+              <button type="submit" class="confirmation-btn confirm-btn">
+                <i class="fas fa-check"></i> Xác nhận thêm
+              </button>
+            </div>
           </form>
         </div>
       </div>
+    </div>
 
-      <div id="viewNoteModal" class="modal-overlay">
-        <div class="modal">
-          <div class="modal-header">
-            <h3 class="modal-title" id="viewNoteTitle"></h3>
-            <button id="closeViewModalBtn" class="modal-close">
-              <i class="fas fa-times"></i>
-            </button>
-          </div>
-          <div class="modal-body">
-            <div class="view-meta-row">
-              <div class="meta-item">
-                <label class="form-label">Thẻ:</label>
-                <span id="viewNoteTag" class="view-content note-tag"></span>
-              </div>
-              <div class="meta-item">
-                <label class="form-label">Trạng thái:</label>
-                <span id="viewNoteStatus" class="view-content"></span>
-              </div>
-              <div class="meta-item">
-                <label class="form-label">Thời gian:</label>
-                <p id="viewNoteTime" class="view-content"></p>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Nội dung:</label>
-              <p id="viewNoteContent" class="view-content"></p>
-            </div>
-
-            <div id="viewNoteActions" class="form-group"></div>
-          </div>
-        </div>
-      </div>
-
-      <div id="confirmModal" class="modal-overlay">
-        <div class="modal confirmation-modal">
-          <div class="modal-body">
-            <p class="confirmation-text">
-              Bạn có chắc chắn muốn xóa ghi chú này không?
-            </p>
-            <div class="confirmation-buttons">
-              <button id="cancelDeleteBtn" class="confirmation-btn cancel-btn">
-                Hủy
-              </button>
-              <button
-                id="confirmDeleteBtn"
-                class="confirmation-btn confirm-btn"
-              >
-                Xóa
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div id="manageTagsModal" class="modal-overlay">
-        <div class="modal">
-          <div class="modal-header">
-            <h3 class="modal-title">Quản lý Thẻ Ghi Chú</h3>
-            <button id="closeManageTagsModalBtn" class="modal-close">
-              <i class="fas fa-times"></i>
-            </button>
-          </div>
-          <div class="modal-body">
-            <div class="form-group">
-              <label for="newTagName" class="form-label">Tên Thẻ Mới/Sửa</label>
-              <input type="text" id="newTagName" class="form-input" placeholder="Ví dụ: Du lịch" />
-            </div>
-            <div class="form-group">
-              <label for="newTagIcon" class="form-label">Icon (Font Awesome class)</label>
-              <input type="text" id="newTagIcon" class="form-input" placeholder="Ví dụ: fas fa-plane" />
-              <p class="help-text">Tìm icon tại: <a href="https://fontawesome.com/v5/search?m=free" target="_blank">Font Awesome Free</a> (chỉ copy class, ví dụ: `fas fa-plane`)</p>
-            </div>
-            <div class="form-group">
-              <label for="newTagColor" class="form-label">Màu Thẻ</label>
-              <input type="color" id="newTagColor" class="form-input color-input" value="#4f46e5" />
-              <p class="help-text">Chọn màu nền cho thẻ.</p>
-            </div>
-            <button id="addOrUpdateTagBtn" class="submit-btn small-btn">Thêm Thẻ</button>
-            <hr style="margin: 20px 0;">
-            <h4>Các Thẻ Hiện Có:</h4>
-            <div id="currentTagsList" class="tags-list">
-              </div>
-          </div>
-        </div>
-      </div>
-
-      <div id="settingsModal" class="modal-overlay">
-    <div class="modal">
+    <!-- Time Reports Modal -->
+    <div id="timeReportsModal" class="modal-overlay">
+      <div class="modal">
         <div class="modal-header">
-            <h3 class="modal-title">Cài đặt</h3>
-            <button id="closeSettingsModalBtn" class="modal-close">
-                <i class="fas fa-times"></i>
-            </button>
+          <h3 class="modal-title" id="timeReportsModalTitle">Báo cáo thời gian tuần này</h3>
+          <button id="closeTimeReportsModalBtn" class="modal-close">
+            <i class="fas fa-times"></i>
+          </button>
         </div>
         <div class="modal-body">
-            <div class="form-group">
-                <label for="noteColumns" class="form-label">Số cột hiển thị ghi chú:</label>
-                <select id="noteColumns" class="form-input">
-                    <option value="1">1 cột</option>
-                    <option value="2">2 cột</option>
-                    <option value="3">3 cột</option>
-                    <option value="4">4 cột</option>
-                </select>
+          <!-- Summary Cards -->
+          <div class="time-reports-summary">
+            <div class="summary-card">
+              <i class="fas fa-tasks"></i>
+              <div>
+                <h4 id="totalTasksText">Tổng số task</h4>
+                <p id="totalTasksCount">0</p>
+              </div>
             </div>
-            <div class="form-group">
-                <label for="backgroundColor" class="form-label">Màu nền trang web:</label>
-                <input type="color" id="backgroundColor" class="form-input color-input" value="#f8f9fa" />
+            <div class="summary-card success">
+              <i class="fas fa-check-circle"></i>
+              <div>
+                <h4 id="onTimeTasksText">Hoàn thành đúng hạn</h4>
+                <p id="onTimeTasksCount">0</p>
+              </div>
             </div>
-            <div class="form-group">
-                <label for="languageSelect" class="form-label">Ngôn ngữ:</label>
-                <select id="languageSelect" class="form-input">
-                    <option value="vi">Tiếng Việt</option>
-                    <option value="en">English</option>
-                </select>
+            <div class="summary-card warning">
+              <i class="fas fa-clock"></i>
+              <div>
+                <h4 id="lateTasksText">Hoàn thành trễ</h4>
+                <p id="lateTasksCount">0</p>
+              </div>
             </div>
-            <div class="form-group">
-                <label for="notificationTimeBefore" id="notificationTimeBeforeLabel" class="form-label" data-lang="notificationTimeBefore">Thông báo trước (phút):</label>
-                <select id="notificationTimeBefore" class="form-input">
-                    <option value="0">Không thông báo</option>
-                    <option value="5">5 phút</option>
-                    <option value="10">10 phút</option>
-                    <option value="15">15 phút</option>
-                    <option value="30">30 phút</option>
-                    <option value="60">60 phút</option>
-                </select>
+            <div class="summary-card info">
+              <i class="fas fa-hourglass-half"></i>
+              <div>
+                <h4 id="avgTimeText">Thời gian TB</h4>
+                <p id="avgTimeValue">0 phút</p>
+              </div>
             </div>
-            <button id="saveSettingsBtn" class="submit-btn small-btn">Lưu Cài đặt</button>
+          </div>
+
+          <!-- Chart -->
+          <div class="chart-container">
+            <canvas id="timeReportsChart"></canvas>
+          </div>
+
+          <!-- Detailed List -->
+          <div class="time-reports-list">
+            <h4 id="detailsTitle">Chi tiết các task trong tuần</h4>
+            <div id="timeReportsList"></div>
+          </div>
         </div>
+      </div>
     </div>
-</div>
+
+    <div id="settingsModal" class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title">Cài đặt</h3>
+          <button id="closeSettingsModalBtn" class="modal-close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="appNameInput" id="appNameLabel" class="form-label">Tên ứng dụng:</label>
+            <input type="text" id="appNameInput" class="form-input" placeholder="Ghi chú của tôi" />
+          </div>
+          <div class="form-group">
+            <label for="noteColumns" class="form-label">Số cột hiển thị ghi chú:</label>
+            <select id="noteColumns" class="form-input">
+              <option value="1">1 cột</option>
+              <option value="2">2 cột</option>
+              <option value="3">3 cột</option>
+              <option value="4">4 cột</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="backgroundColor" class="form-label">Màu nền trang web:</label>
+            <input type="color" id="backgroundColor" class="form-input color-input" value="#f8f9fa" />
+          </div>
+          <div class="form-group">
+            <label for="languageSelect" class="form-label">Ngôn ngữ:</label>
+            <select id="languageSelect" class="form-input">
+              <option value="vi">Tiếng Việt</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="notificationTimeBefore" id="notificationTimeBeforeLabel" class="form-label">Thông báo trước
+              (phút):</label>
+            <select id="notificationTimeBefore" class="form-input">
+              <option value="0">Không thông báo</option>
+              <option value="5">5 phút</option>
+              <option value="10">10 phút</option>
+              <option value="15">15 phút</option>
+              <option value="30">30 phút</option>
+              <option value="60">60 phút</option>
+            </select>
+          </div>
+          <button id="saveSettingsBtn" class="submit-btn small-btn">Lưu Cài đặt</button>
+        </div>
+      </div>
     </div>
 
-    <div id="toastContainer" class="toast-container"></div>
+  </div>
 
-    <footer class="footer">
-      <p>&copy; 2025 Lập trình và phát triển web - Châu Kil</p>
-    </footer>
+  <div id="toastContainer" class="toast-container"></div>
 
-    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
-    <script src="./index.js"></script>
-  </body>
+  <footer class="footer">
+    <p id="footerText">&copy; 2025 Lập trình và phát triển web - Châu Kil</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/kjua@0.9.0/dist/kjua.min.js"></script>
+
+  <!-- 2. HTML5 QR Scanner -->
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <!-- 3. Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+
+  <!-- 4. ExcelJS -->
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
+
+  <!-- 5. Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- 6. Script của bạn CUỐI CÙNG -->
+  <script src="./index.js"></script>
+</body>
+
 </html>
