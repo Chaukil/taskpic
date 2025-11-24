@@ -492,6 +492,15 @@ body {
     .action-buttons-row button {
         flex: 1 1 100%; /* Màn hình quá nhỏ thì 1 nút 1 hàng */
     }
+
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+    
+    .form-row .form-group {
+        margin-bottom: 20px;
+    }
 }
 
 @media (min-width: 768px) {
@@ -967,7 +976,7 @@ body {
     border-radius: 12px;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
     width: 100%;
-    max-width: 800px;
+    max-width: 900px;
     margin: 20px;
     transform: translateY(20px);
     animation: fadeInScale 0.3s ease-out forwards;
@@ -1040,6 +1049,17 @@ body {
 .modal-body .form-group:last-of-type {
     margin-bottom: 0;
     /* Loại bỏ margin-bottom cuối cùng nếu không cần */
+}
+
+.form-row {
+    display: flex;
+    gap: 15px; /* Khoảng cách giữa 2 ô */
+    margin-bottom: 20px; /* Khoảng cách dưới cùng của hàng */
+}
+
+.form-row .form-group {
+    flex: 1; /* Chia đều chiều rộng 50-50 */
+    margin-bottom: 0; /* Xóa margin mặc định của form-group để căn đều */
 }
 
 .meta-item {

@@ -90,6 +90,22 @@ document.addEventListener("DOMContentLoaded", function () {
     const closeAddFromQRBtn = document.getElementById("closeAddFromQRBtn");
     const addFromQRForm = document.getElementById("addFromQRForm");
 
+    const userAvatar = document.getElementById('userAvatar');
+    const userDropdown = document.getElementById('userDropdown');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const userName = document.getElementById('userName');
+    const userEmail = document.getElementById('userEmail');
+
+    const profileModal = document.getElementById("profileModal");
+    const profileBtn = document.getElementById("profileBtn");
+    const closeProfileModalBtn = document.getElementById("closeProfileModalBtn");
+    const profileNameInput = document.getElementById("profileName");
+    const profileEmailInput = document.getElementById("profileEmail");
+    const profileJoinedInput = document.getElementById("profileJoinedDate");
+    const profileAvatarDisplay = document.getElementById("profileAvatarDisplay");
+    const saveProfileBtn = document.getElementById("saveProfileBtn");
+    const sendPasswordResetBtn = document.getElementById("sendPasswordResetBtn");
+
     let html5QrCode = null;
     let currentQRNoteData = null;
     let currentGeneratedNote = null;
@@ -108,71 +124,253 @@ document.addEventListener("DOMContentLoaded", function () {
     // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
-    const notesCollection = db.collection('notes');
-    const tagsCollection = db.collection('tags');
+    const auth = firebase.auth();
 
+    let currentUser = null;
     let notes = [];
     let tags = [];
     let noteToDeleteId = null;
     let editingNoteKey = null;
     let editingTagId = null;
-
-    let editingNoteId = null;
-    let deletingNoteId = null;
-    let deletingTagId = null;
-
-    let notificationInterval; // Biến để lưu trữ interval của thông báo
+    let notificationInterval;
     let notifiedNotes = new Set();
-
     let overdueCheckInterval;
-
-    notesCollection.orderBy('time').onSnapshot((snapshot) => {
-        notes = [];
-        snapshot.forEach((doc) => {
-            const note = doc.data();
-            note.id = doc.id;
-            notes.push(note);
-        });
-        notesLoaded = true;
-
-        // Render notes nếu cả tags và notes đã load
-        if (tagsLoaded) {
-            renderNotes();
-            updateEmptyState();
-            filterNotes();
-            startOverdueCheckInterval();
-        }
-    }, (error) => {
-        console.error("Error fetching notes from Firestore: ", error);
-        showToast('toastErrorLoadingNotes', 'error');
-    });
-
     let tagsLoaded = false;
     let notesLoaded = false;
 
-    tagsCollection.orderBy('name').onSnapshot((snapshot) => {
-        tags = [];
-        snapshot.forEach((doc) => {
-            const tag = doc.data();
-            tag.id = doc.id;
-            tags.push(tag);
-        });
-        tagsLoaded = true;
-
-        renderTagOptions();
-        renderFilterOptions();
-        renderCurrentTagsList();
-
-        // Render notes nếu cả tags và notes đã load
-        if (notesLoaded) {
-            renderNotes();
-            updateEmptyState();
-            filterNotes();
+    auth.onAuthStateChanged((user) => {
+        if (!user) {
+            window.location.href = 'login.html';
+            return;
         }
-    }, (error) => {
-        console.error("Error fetching tags from Firestore: ", error);
-        showToast('toastErrorLoadingTags', 'error');
+
+        currentUser = user;
+        console.log('✅ Authenticated as:', user.email);
+
+        initApp();
     });
+
+    function initApp() {
+        updateUserMenu();
+        loadUserSettingsFromFirestore();
+        startMainApp();
+    }
+
+    function updateUserMenu() {
+        if (currentUser) {
+            if (userName) userName.textContent = currentUser.displayName || 'User';
+            if (userEmail) userEmail.textContent = currentUser.email;
+            if (userAvatar && currentUser.photoURL) {
+                userAvatar.innerHTML = `
+                    <img src="${currentUser.photoURL}" 
+                         alt="Avatar" 
+                         style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; cursor: pointer;">
+                `;
+            }
+        }
+    }
+
+    async function loadUserSettingsFromFirestore() {
+        if (!currentUser) return;
+        try {
+            const userDoc = await db.collection('users').doc(currentUser.uid).get();
+            if (userDoc.exists) {
+                const userData = userDoc.data();
+                const settings = userData.settings || {};
+                if (settings.language) {
+                    localStorage.setItem('language', settings.language);
+                    currentLanguage = settings.language;
+                }
+                if (settings.noteColumns) localStorage.setItem('noteColumns', settings.noteColumns);
+                if (settings.backgroundColor) localStorage.setItem('backgroundColor', settings.backgroundColor);
+                if (settings.notificationTimeBefore !== undefined) localStorage.setItem('notificationTimeBefore', settings.notificationTimeBefore);
+
+                // Apply settings ngay lập tức
+                loadSettings();
+            }
+        } catch (error) {
+            console.error('Error loading user settings:', error);
+        }
+    }
+
+    function startMainApp() {
+        // === QUAN TRỌNG: Thêm .where() để lọc theo userId ===
+        const notesCollection = db.collection('notes').where('userId', '==', currentUser.uid);
+        const tagsCollection = db.collection('tags').where('userId', '==', currentUser.uid);
+
+        // Load Notes
+        notesCollection.orderBy('time').onSnapshot((snapshot) => {
+            notes = [];
+            snapshot.forEach((doc) => {
+                const note = doc.data();
+                note.id = doc.id;
+                notes.push(note);
+            });
+            notesLoaded = true;
+
+            if (tagsLoaded) {
+                renderNotes();
+                updateEmptyState();
+                filterNotes();
+                startOverdueCheckInterval();
+            }
+        }, (error) => {
+            console.error("Error fetching notes:", error);
+            // Nếu lỗi do thiếu index, nó sẽ hiện link trong console, bạn cần click vào link đó
+            if (error.code === 'failed-precondition') {
+                showToast('Vui lòng tạo Index trong Firebase Console (xem F12)', 'error');
+            } else {
+                showToast('Lỗi tải dữ liệu: ' + error.message, 'error');
+            }
+        });
+
+        tagsCollection.orderBy('name').onSnapshot((snapshot) => {
+            tags = [];
+            snapshot.forEach((doc) => {
+                const tag = doc.data();
+                tag.id = doc.id;
+                tags.push(tag);
+            });
+            tagsLoaded = true;
+
+            renderTagOptions();
+            renderFilterOptions();
+            renderCurrentTagsList();
+
+            if (notesLoaded) {
+                renderNotes();
+                updateEmptyState();
+                filterNotes();
+            }
+        }, (error) => {
+            console.error("Error fetching tags:", error);
+        });
+
+        // Load Settings ban đầu (từ localStorage trước khi load từ DB)
+        loadSettings();
+    }
+
+    async function handleNoteSubmit(e) {
+        e.preventDefault();
+
+        const title = document.getElementById("noteTitle").value;
+        const content = document.getElementById("noteContent").value;
+        const time = document.getElementById("noteTime").value;
+        const dayOfWeek = parseInt(noteDayOfWeekSelect.value);
+        const expectedDuration = parseInt(expectedDurationInput.value) || 30;
+        const selectedTagRadio = document.querySelector('input[name="noteTag"]:checked');
+
+        let tagId = null;
+        if (selectedTagRadio) {
+            tagId = selectedTagRadio.value;
+        } else if (tags.length > 0) {
+            tagId = tags[0].id;
+        } else {
+            showToast('toastNoTagDefined', 'warning');
+            return;
+        }
+
+        const noteData = {
+            userId: currentUser.uid, // QUAN TRỌNG: Thêm userId
+            title,
+            content,
+            tag: tagId,
+            time: time,
+            dayOfWeek: dayOfWeek,
+            expectedDuration: expectedDuration,
+            actualDuration: null,
+            startTime: null,
+            endTime: null,
+            isOnTime: null,
+            completed: false
+        };
+
+        try {
+            if (editingNoteKey) {
+                // Khi update không cần gửi lại userId nếu không muốn ghi đè
+                delete noteData.userId;
+                await db.collection('notes').doc(editingNoteKey).update(noteData);
+                showToast('toastNoteUpdated', 'success');
+            } else {
+                await db.collection('notes').add(noteData);
+                showToast('toastNoteSaved', 'success');
+            }
+        } catch (error) {
+            console.error("Error saving note: ", error);
+            showToast('toastErrorSavingNote', 'error');
+        }
+
+        closeAddNoteModal();
+    }
+
+    // === Cập nhật hàm handleAddOrUpdateTag để thêm userId ===
+    async function handleAddOrUpdateTag() {
+        const tagNameVi = newTagNameInput.value.trim();
+        const tagNameEn = newTagNameEnInput.value.trim();
+        const tagIcon = newTagIconInput.value.trim();
+        const tagColor = newTagColorInput.value;
+
+        if (!tagNameVi) {
+            showToast('toastTagNameRequired', 'warning');
+            return;
+        }
+
+        // Check duplicate (chỉ check trong tags của user hiện tại)
+        const isDuplicate = tags.some(tag => {
+            const existingNameVi = typeof tag.name === 'object' ? tag.name.vi : tag.name;
+            return existingNameVi.toLowerCase() === tagNameVi.toLowerCase() && tag.id !== editingTagId;
+        });
+
+        if (isDuplicate) {
+            showToast('toastTagExists', 'warning');
+            return;
+        }
+
+        const tagData = {
+            userId: currentUser.uid, // QUAN TRỌNG: Thêm userId
+            name: {
+                vi: tagNameVi,
+                en: tagNameEn || tagNameVi
+            },
+            icon: tagIcon || '',
+            color: tagColor || '#e0e0e0'
+        };
+
+        try {
+            if (editingTagId) {
+                delete tagData.userId;
+                await db.collection('tags').doc(editingTagId).update(tagData);
+                showToast('toastTagUpdated', 'success');
+            } else {
+                await db.collection('tags').add(tagData);
+                showToast('toastTagAdded', 'success');
+            }
+            // Reset form
+            newTagNameInput.value = '';
+            newTagNameEnInput.value = '';
+            newTagIconInput.value = '';
+            newTagColorInput.value = '#4f46e5';
+            addOrUpdateTagBtn.textContent = translations[currentLanguage].addTagBtn;
+            editingTagId = null;
+        } catch (error) {
+            console.error("Error adding/updating tag: ", error);
+            showToast('toastErrorTagSave', 'error');
+        }
+    }
+
+    // === Các hàm xử lý xóa ===
+    async function confirmDeleteNote() {
+        if (noteToDeleteId) {
+            try {
+                await db.collection('notes').doc(noteToDeleteId).delete();
+                showToast('toastNoteDeleted', 'error'); // Có thể sửa thành 'success' nếu muốn màu xanh
+            } catch (error) {
+                console.error("Error deleting note: ", error);
+                showToast('toastErrorDeletingNote', 'error');
+            }
+            closeConfirmModal();
+        }
+    }
 
     // === Event Listeners ===
     addNoteBtn.addEventListener("click", () => openAddNoteModal());
@@ -196,6 +394,117 @@ document.addEventListener("DOMContentLoaded", function () {
 
     dayOfWeekSelect.addEventListener("change", filterNotes);
     exportExcelBtn.addEventListener("click", exportToExcel);
+
+    if (userAvatar) {
+        userAvatar.addEventListener('click', () => {
+            userDropdown.style.display = userDropdown.style.display === 'none' ? 'block' : 'none';
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        if (userAvatar && !userAvatar.contains(e.target) && !userDropdown.contains(e.target)) {
+            userDropdown.style.display = 'none';
+        }
+    });
+
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                await firebase.auth().signOut();
+                window.location.href = 'login.html';
+            } catch (error) {
+                console.error('Logout error:', error);
+                showToast('Lỗi khi đăng xuất!', 'error');
+            }
+        });
+    }
+
+    if (profileBtn) {
+        profileBtn.addEventListener("click", () => {
+            // Ẩn dropdown menu trước
+            if (userDropdown) userDropdown.style.display = 'none';
+
+            if (!currentUser) return;
+
+            profileModal.classList.add("active");
+            document.body.style.overflow = "hidden";
+
+            // Điền dữ liệu hiện tại
+            profileEmailInput.value = currentUser.email;
+            profileNameInput.value = currentUser.displayName || "";
+
+            // Format ngày tham gia
+            if (currentUser.metadata && currentUser.metadata.creationTime) {
+                const date = new Date(currentUser.metadata.creationTime);
+                profileJoinedInput.value = date.toLocaleDateString('vi-VN');
+            }
+
+            // Hiển thị Avatar
+            if (currentUser.photoURL) {
+                profileAvatarDisplay.innerHTML = `<img src="${currentUser.photoURL}" style="width: 100%; height: 100%; object-fit: cover;">`;
+            } else {
+                profileAvatarDisplay.innerHTML = `<i class="fas fa-user"></i>`;
+            }
+        });
+    }
+
+    // Đóng Modal Hồ sơ
+    if (closeProfileModalBtn) {
+        closeProfileModalBtn.addEventListener("click", () => {
+            profileModal.classList.remove("active");
+            document.body.style.overflow = "auto";
+        });
+    }
+
+    // Lưu thay đổi Hồ sơ (Chỉ tên hiển thị)
+    if (saveProfileBtn) {
+        saveProfileBtn.addEventListener("click", async () => {
+            const lang = translations[currentLanguage];
+            const newName = profileNameInput.value.trim();
+
+            if (!newName) {
+                showToast("Tên không được để trống", "warning");
+                return;
+            }
+
+            try {
+                await currentUser.updateProfile({ displayName: newName });
+                await db.collection('users').doc(currentUser.uid).update({ name: newName });
+
+                updateUserMenu();
+
+                showToast(lang.toastProfileUpdated, "success");
+                profileModal.classList.remove("active");
+                document.body.style.overflow = "auto";
+
+            } catch (error) {
+                console.error("Error updating profile:", error);
+                showToast("Lỗi khi cập nhật hồ sơ: " + error.message, "error");
+            }
+        });
+    }
+
+    // Gửi email đổi mật khẩu
+    if (sendPasswordResetBtn) {
+        sendPasswordResetBtn.addEventListener("click", async () => {
+            const lang = translations[currentLanguage]; // Lấy ngôn ngữ hiện tại
+            if (!currentUser.email) return;
+
+            const confirmMsg = lang.confirmResetPassword.replace('{email}', currentUser.email);
+
+            if (confirm(confirmMsg)) {
+                try {
+                    await auth.sendPasswordResetEmail(currentUser.email);
+                    showToast(lang.toastResetEmailSent, "success");
+                } catch (error) {
+                    console.error("Error sending password reset:", error);
+                    showToast(lang.toastResetEmailError + error.message, "error");
+                }
+            }
+        });
+    }
+
+    if (pasteLinkBtn) pasteLinkBtn.addEventListener("click", handlePasteLink);
 
     // === Tag Management Functions ===
 
@@ -355,7 +664,26 @@ document.addEventListener("DOMContentLoaded", function () {
             'excelColActual': 'Thực tế (phút)',
             'excelColPerformance': 'Hiệu suất',
             'performanceOnTime': 'Đúng giờ',
-            'performanceLate': 'Trễ'
+            'performanceLate': 'Trễ',
+            'reportSchedule': 'Lịch',
+            'reportCompleted': 'Xong',
+            'menuProfile': 'Hồ sơ',
+            'menuLogout': 'Đăng xuất',
+            'profileModalTitle': 'Thông tin tài khoản',
+            'labelProfileEmail': 'Email (Không thể thay đổi)',
+            'labelProfileName': 'Tên hiển thị',
+            'labelProfileJoined': 'Ngày tham gia',
+            'labelSecurity': 'Bảo mật',
+            'textSendResetBtn': 'Gửi email đổi mật khẩu',
+            'helpTextReset': 'Chúng tôi sẽ gửi liên kết đổi mật khẩu đến email của bạn.',
+            'saveProfileBtn': 'Lưu thay đổi',
+            // Thông báo Toast
+            'toastNameRequired': 'Tên không được để trống',
+            'toastProfileUpdated': 'Cập nhật hồ sơ thành công!',
+            'toastProfileUpdateError': 'Lỗi khi cập nhật hồ sơ: ',
+            'confirmResetPassword': 'Gửi email đổi mật khẩu đến {email}?',
+            'toastResetEmailSent': 'Đã gửi email! Vui lòng kiểm tra hộp thư.',
+            'toastResetEmailError': 'Lỗi gửi email: '
         },
         'en': {
             'appNameLabel': 'App Name:',
@@ -513,7 +841,26 @@ document.addEventListener("DOMContentLoaded", function () {
             'excelColActual': 'Actual (min)',
             'excelColPerformance': 'Performance',
             'performanceOnTime': 'On Time',
-            'performanceLate': 'Late'
+            'performanceLate': 'Late',
+            'reportSchedule': 'Schedule',
+            'reportCompleted': 'Done',
+            'menuProfile': 'Profile',
+            'menuLogout': 'Logout',
+            'profileModalTitle': 'Account Information',
+            'labelProfileEmail': 'Email (Cannot be changed)',
+            'labelProfileName': 'Display Name',
+            'labelProfileJoined': 'Joined Date',
+            'labelSecurity': 'Security',
+            'textSendResetBtn': 'Send Password Reset Email',
+            'helpTextReset': 'We will send a password reset link to your email.',
+            'saveProfileBtn': 'Save Changes',
+            // Toast Messages
+            'toastNameRequired': 'Display name cannot be empty',
+            'toastProfileUpdated': 'Profile updated successfully!',
+            'toastProfileUpdateError': 'Error updating profile: ',
+            'confirmResetPassword': 'Send password reset email to {email}?',
+            'toastResetEmailSent': 'Email sent! Please check your inbox.',
+            'toastResetEmailError': 'Error sending email: '
         }
     };
 
@@ -734,9 +1081,38 @@ document.addEventListener("DOMContentLoaded", function () {
         if (qrOtherOptionsText) {
             qrOtherOptionsText.textContent = lang.qrOtherOptions;
         }
-    }
 
-    if (pasteLinkBtn) pasteLinkBtn.addEventListener("click", handlePasteLink);
+        const profileBtn = document.getElementById('profileBtn');
+        if (profileBtn) profileBtn.innerHTML = `<i class="fas fa-user"></i> ${lang.menuProfile}`;
+
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) logoutBtn.innerHTML = `<i class="fas fa-sign-out-alt"></i> ${lang.menuLogout}`;
+
+        // Profile Modal Elements
+        const profileModalTitle = document.getElementById('profileModalTitle');
+        if (profileModalTitle) profileModalTitle.textContent = lang.profileModalTitle;
+
+        const labelProfileEmail = document.getElementById('labelProfileEmail');
+        if (labelProfileEmail) labelProfileEmail.textContent = lang.labelProfileEmail;
+
+        const labelProfileName = document.getElementById('labelProfileName');
+        if (labelProfileName) labelProfileName.textContent = lang.labelProfileName;
+
+        const labelProfileJoined = document.getElementById('labelProfileJoined');
+        if (labelProfileJoined) labelProfileJoined.textContent = lang.labelProfileJoined;
+
+        const labelSecurity = document.getElementById('labelSecurity');
+        if (labelSecurity) labelSecurity.textContent = lang.labelSecurity;
+
+        const textSendResetBtn = document.getElementById('textSendResetBtn');
+        if (textSendResetBtn) textSendResetBtn.textContent = lang.textSendResetBtn;
+
+        const helpTextReset = document.getElementById('helpTextReset');
+        if (helpTextReset) helpTextReset.textContent = lang.helpTextReset;
+
+        const saveProfileBtn = document.getElementById('saveProfileBtn');
+        if (saveProfileBtn) saveProfileBtn.textContent = lang.saveProfileBtn;
+    }
 
     async function handlePasteLink() {
         try {
@@ -902,14 +1278,17 @@ document.addEventListener("DOMContentLoaded", function () {
                 const lang = translations[currentLanguage];
                 if (confirm(lang.confirmDeleteTag)) {
                     try {
-                        const notesUsingThisTag = await notesCollection.where('tag', '==', tagIdToDelete).get();
+                        const notesUsingThisTag = await db.collection('notes')
+                            .where('userId', '==', currentUser.uid) // Quan trọng: Phải có userId
+                            .where('tag', '==', tagIdToDelete)
+                            .get();
                         const batch = db.batch();
                         notesUsingThisTag.forEach(doc => {
                             batch.update(doc.ref, { tag: null });
                         });
                         await batch.commit();
 
-                        await tagsCollection.doc(tagIdToDelete).delete();
+                        await db.collection('tags').doc(tagIdToDelete).delete();
                         showToast('toastTagDeleted', 'success');
                     } catch (error) {
                         console.error("Error deleting tag: ", error);
@@ -946,56 +1325,6 @@ document.addEventListener("DOMContentLoaded", function () {
             lang.thursday, lang.friday, lang.saturday
         ];
         return days[dayNumber];
-    }
-
-    async function handleAddOrUpdateTag() {
-        const tagNameVi = newTagNameInput.value.trim();
-        const tagNameEn = newTagNameEnInput.value.trim();
-        const tagIcon = newTagIconInput.value.trim();
-        const tagColor = newTagColorInput.value;
-
-        if (!tagNameVi) {
-            showToast('toastTagNameRequired', 'warning');
-            return;
-        }
-
-        const isDuplicate = tags.some(tag => {
-            const existingNameVi = typeof tag.name === 'object' ? tag.name.vi : tag.name;
-            return existingNameVi.toLowerCase() === tagNameVi.toLowerCase() && tag.id !== editingTagId;
-        });
-
-        if (isDuplicate) {
-            showToast('toastTagExists', 'warning');
-            return;
-        }
-
-        const tagData = {
-            name: {
-                vi: tagNameVi,
-                en: tagNameEn || tagNameVi
-            },
-            icon: tagIcon || '',
-            color: tagColor || '#e0e0e0'
-        };
-
-        try {
-            if (editingTagId) {
-                await tagsCollection.doc(editingTagId).update(tagData);
-                showToast('toastTagUpdated', 'success');
-            } else {
-                await tagsCollection.add(tagData);
-                showToast('toastTagAdded', 'success');
-            }
-            newTagNameInput.value = '';
-            newTagNameEnInput.value = '';
-            newTagIconInput.value = '';
-            newTagColorInput.value = '#4f46e5';
-            addOrUpdateTagBtn.textContent = translations[currentLanguage].addTagBtn;
-            editingTagId = null;
-        } catch (error) {
-            console.error("Error adding/updating tag: ", error);
-            showToast('toastErrorTagSave', 'error');
-        }
     }
 
     function openManageTagsModal() {
@@ -1049,7 +1378,6 @@ document.addEventListener("DOMContentLoaded", function () {
         notesContainer.innerHTML = "";
 
         if (tags.length === 0) {
-            console.log("Tags not loaded yet, waiting...");
             return; // Thoát và đợi tags snapshot trigger lại renderNotes
         }
 
@@ -1141,7 +1469,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     }
 
                     try {
-                        await notesCollection.doc(noteId).update({
+                        await db.collection('notes').doc(noteId).update({
                             completed: true,
                             endTime: endTime,
                             actualDuration: actualDuration,
@@ -1263,7 +1591,6 @@ document.addEventListener("DOMContentLoaded", function () {
     function startQRScanner() {
         // Kiểm tra nếu scanner đang chạy, dừng trước khi khởi động lại
         if (html5QrCode && html5QrCode.getState() === Html5QrcodeScannerState.SCANNING) {
-            console.log("Scanner already running, stopping first...");
             stopQRScanner();
             return;
         }
@@ -1299,7 +1626,6 @@ document.addEventListener("DOMContentLoaded", function () {
                             html5QrCode = null;
                         })
                         .catch(err => {
-                            console.warn("Warning stopping scanner:", err);
                             html5QrCode = null;
                         });
                 } else {
@@ -1316,10 +1642,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
     function onScanSuccess(decodedText, decodedResult) {
-        console.log(`QR Code detected: ${decodedText}`);
-
-        // 1. Dừng scanner ngay lập tức nếu đang chạy
-        // Sử dụng setTimeout để tách luồng, tránh xung đột UI
         setTimeout(() => {
             stopQRScanner();
         }, 100);
@@ -1371,7 +1693,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     fileScannerInstance.clear();
                 })
                 .catch(err => {
-                    console.error("Error scanning file:", err);
                     showToast('qrScanError', 'error');
                     fileScannerInstance.clear();
                 });
@@ -1386,7 +1707,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     scanFile(); // Quét file sau khi dừng camera
                 })
                 .catch(err => {
-                    console.error("Error stopping camera:", err);
                     scanFile(); // Thử quét file dù lỗi dừng camera
                 });
         } else {
@@ -1431,7 +1751,6 @@ document.addEventListener("DOMContentLoaded", function () {
         return new Promise((resolve, reject) => {
             // Kiểm tra nếu đã có
             if (typeof QRCode !== 'undefined') {
-                console.log('QRCode library already loaded');
                 resolve();
                 return;
             }
@@ -1442,10 +1761,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const checkLibrary = setInterval(() => {
                 attempts++;
-                console.log(`Checking QRCode library... attempt ${attempts}`);
 
                 if (typeof QRCode !== 'undefined') {
-                    console.log('QRCode library loaded successfully');
                     clearInterval(checkLibrary);
                     resolve();
                 } else if (attempts >= maxAttempts) {
@@ -1476,7 +1793,6 @@ document.addEventListener("DOMContentLoaded", function () {
         try {
             // Kiểm tra kjua đã load chưa
             if (typeof kjua === 'undefined') {
-                console.error('kjua library not loaded');
                 showToast('Lỗi thư viện QR. Vui lòng tải lại trang.', 'error');
                 return;
             }
@@ -1498,9 +1814,7 @@ document.addEventListener("DOMContentLoaded", function () {
             // Thêm vào DOM
             container.appendChild(qrCode);
 
-            console.log('QR Code generated with kjua');
         } catch (error) {
-            console.error('Error generating QR:', error);
             showToast('qrScanError', 'error');
         }
     }
@@ -1637,6 +1951,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         const newNoteData = {
+            userId: currentUser.uid,
             title,
             content,
             tag: tagId,
@@ -1700,7 +2015,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             uncompleteBtn.addEventListener('click', function () {
                 const noteId = this.getAttribute('data-id');
-                notesCollection.doc(noteId).update({ completed: false })
+                db.collection('notes').doc(noteId).update({ completed: false })
                     .then(() => {
                         closeViewNoteModal();
                         showToast('toastNoteReset', 'info');
@@ -1792,19 +2107,38 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const timeDiff = (note.expectedDuration || 0) - (note.actualDuration || 0);
 
-            // SỬA Ở ĐÂY: Dùng lang.timeUnit
             const diffText = timeDiff > 0
                 ? `${lang.savedTime}: ${timeDiff} ${lang.timeUnit}`
                 : `${lang.overtime}: ${Math.abs(timeDiff)} ${lang.timeUnit}`;
+
+            // Format thời gian hoàn thành
+            let completedAtStr = "--:--";
+            if (note.endTime) {
+                const endDate = new Date(note.endTime);
+                const hours = String(endDate.getHours()).padStart(2, '0');
+                const minutes = String(endDate.getMinutes()).padStart(2, '0');
+                const day = String(endDate.getDate()).padStart(2, '0');
+                const month = String(endDate.getMonth() + 1).padStart(2, '0');
+                completedAtStr = `${hours}:${minutes} (${day}/${month})`;
+            }
+
+            // --- BẮT ĐẦU SỬA: Logic chọn màu ---
+            // Nếu đúng hạn (isOnTime = true) -> Màu xanh (#059669)
+            // Nếu trễ (isOnTime = false) -> Màu cam đậm (#d97706)
+            const completionColor = note.isOnTime ? '#059669' : '#d97706';
+            // --- KẾT THÚC SỬA ---
 
             item.innerHTML = `
         <i class="fas ${note.isOnTime ? 'fa-check-circle' : 'fa-exclamation-circle'} status-icon"></i>
         <div class="note-info">
             <h5>${note.title}</h5>
-            <p>${getDayName(note.dayOfWeek || 0)} - ${note.time}</p>
+            <p style="margin-bottom: 2px;"><i class="far fa-clock"></i> ${lang.reportSchedule}: ${getDayName(note.dayOfWeek || 0)} - ${note.time}</p>
+            
+            <p style="color: ${completionColor}; font-weight: 600;">
+                <i class="fas fa-check-double"></i> ${lang.reportCompleted}: ${completedAtStr}
+            </p>
         </div>
         <div class="time-stats">
-            <!-- SỬA Ở ĐÂY: Dùng lang.timeUnit -->
             <span>${lang.expectedTime}: ${note.expectedDuration || 0} ${lang.timeUnit}</span>
             <span>${lang.actualTime}: ${note.actualDuration || 0} ${lang.timeUnit}</span>
         </div>
@@ -1815,6 +2149,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             timeReportsList.appendChild(item);
         });
+
 
         // Render chart (giữ nguyên logic cũ)
         renderTimeReportsChart(weeklyNotes);
@@ -1899,81 +2234,8 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Cập nhật handleNoteSubmit để lưu expected duration
-    async function handleNoteSubmit(e) {
-        e.preventDefault();
 
-        const title = document.getElementById("noteTitle").value;
-        const content = document.getElementById("noteContent").value;
-        const time = document.getElementById("noteTime").value;
-        const dayOfWeek = parseInt(noteDayOfWeekSelect.value);
-        const expectedDuration = parseInt(expectedDurationInput.value) || 30; // Mặc định 30 phút
-        const selectedTagRadio = document.querySelector('input[name="noteTag"]:checked');
-
-        let tagId = null;
-        if (selectedTagRadio) {
-            tagId = selectedTagRadio.value;
-        } else if (tags.length > 0) {
-            tagId = tags[0].id;
-        } else {
-            showToast('toastNoTagDefined', 'warning');
-            return;
-        }
-
-        const newNoteData = {
-            title,
-            content,
-            tag: tagId,
-            time: time,
-            dayOfWeek: dayOfWeek,
-            expectedDuration: expectedDuration, // MỚI
-            actualDuration: null, // Sẽ được cập nhật khi complete
-            startTime: null,
-            endTime: null,
-            isOnTime: null,
-            completed: false
-        };
-
-        const updateNoteData = {
-            title,
-            content,
-            tag: tagId,
-            time: time,
-            dayOfWeek: dayOfWeek,
-            expectedDuration: expectedDuration, // MỚI
-        };
-
-        try {
-            if (editingNoteKey) {
-                await notesCollection.doc(editingNoteKey).update(updateNoteData);
-                showToast('toastNoteUpdated', 'success');
-            } else {
-                await notesCollection.add(newNoteData);
-                showToast('toastNoteSaved', 'success');
-            }
-        } catch (error) {
-            console.error("Error saving note: ", error);
-            showToast('toastErrorSavingNote', 'error');
-        }
-
-        closeAddNoteModal();
-    }
-
-
-    async function confirmDeleteNote() {
-        if (noteToDeleteId) {
-            try {
-                await notesCollection.doc(noteToDeleteId).delete();
-                showToast('toastNoteDeleted', 'error');
-            } catch (error) {
-                console.error("Error deleting note: ", error);
-                showToast('toastErrorDeletingNote', 'error');
-            }
-            closeConfirmModal();
-        }
-    }
-
-        async function exportToExcel() {
+    async function exportToExcel() {
         const lang = translations[currentLanguage];
 
         if (notes.length === 0) {
@@ -2024,7 +2286,7 @@ document.addEventListener("DOMContentLoaded", function () {
             const tagName = noteTag ? getTagName(noteTag) : lang.undefinedTag;
             const status = note.completed ? lang.completedStatus : lang.incompleteStatus;
             const dayName = getDayName(note.dayOfWeek || 0);
-            
+
             // Xử lý dữ liệu mới
             const expected = note.expectedDuration ? note.expectedDuration : '';
             const actual = note.actualDuration ? note.actualDuration : '';
@@ -2077,13 +2339,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
                 // Cột 9: Hiệu suất (Tô màu nền)
                 else if (colNumber === 9 && performance) {
-                    cell.fill = { 
-                        type: 'pattern', 
-                        pattern: 'solid', 
+                    cell.fill = {
+                        type: 'pattern',
+                        pattern: 'solid',
                         fgColor: { argb: note.isOnTime ? 'FFD1FAE5' : 'FFFEE2E2' } // Xanh nhẹ hoặc Đỏ nhẹ
                     };
-                    cell.font = { 
-                        bold: true, 
+                    cell.font = {
+                        bold: true,
                         color: { argb: note.isOnTime ? 'FF047857' : 'FFB91C1C' } // Chữ đậm màu
                     };
                     cell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -2129,7 +2391,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     const noteTag = tags.find(t => t.id === note.tag);
                     const tagName = noteTag ? getTagName(noteTag) : lang.undefinedTag;
                     const status = note.completed ? lang.completedStatus : lang.incompleteStatus;
-                    
+
                     const expected = note.expectedDuration ? note.expectedDuration : '';
                     const actual = note.actualDuration ? note.actualDuration : '';
                     let performance = '';
@@ -2170,14 +2432,14 @@ document.addEventListener("DOMContentLoaded", function () {
                         }
                         // Cột 8: Hiệu suất
                         else if (colNumber === 8 && performance) {
-                            cell.fill = { 
-                                type: 'pattern', 
-                                pattern: 'solid', 
-                                fgColor: { argb: note.isOnTime ? 'FFD1FAE5' : 'FFFEE2E2' } 
+                            cell.fill = {
+                                type: 'pattern',
+                                pattern: 'solid',
+                                fgColor: { argb: note.isOnTime ? 'FFD1FAE5' : 'FFFEE2E2' }
                             };
-                            cell.font = { 
-                                bold: true, 
-                                color: { argb: note.isOnTime ? 'FF047857' : 'FFB91C1C' } 
+                            cell.font = {
+                                bold: true,
+                                color: { argb: note.isOnTime ? 'FF047857' : 'FFB91C1C' }
                             };
                             cell.alignment = { horizontal: 'center', vertical: 'middle' };
                         }
@@ -2192,7 +2454,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     hyperlink: `#'${lang.excelSheetAll}'!A1`,
                     tooltip: `Back to ${lang.excelSheetAll}`
                 };
-                
+
                 ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 8 } };
             }
         }
@@ -2296,7 +2558,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         const notificationTimeBefore = parseInt(localStorage.getItem('notificationTimeBefore') || '5'); // Lấy thời gian thông báo trước từ cài đặt (mặc định 5 phút)
         if (notificationTimeBefore === 0) {
-            console.log("Thông báo đã bị tắt.");
+
             notifiedNotes.clear(); // Xóa các ghi chú đã thông báo nếu tắt thông báo
             return; // Nếu cài đặt là 0 phút, không cần kiểm tra thông báo
         }
@@ -2402,16 +2664,14 @@ document.addEventListener("DOMContentLoaded", function () {
         const batch = db.batch();
         notes.forEach(note => {
             if (!note.completed) {
-                const noteRef = notesCollection.doc(note.id);
+                const noteRef = db.collection('notes').doc(note.id); // Sửa dòng này
                 batch.update(noteRef, { completed: true });
             }
         });
 
         try {
-            if (notes.some(note => !note.completed)) {
-                await batch.commit();
-                showToast('toastAllNotesCompleted', 'success');
-            }
+            await batch.commit();
+            showToast('toastAllNotesCompleted', 'success');
         } catch (error) {
             console.error("Error completing all notes: ", error);
             showToast('toastErrorCompletingAllNotes', 'error');
@@ -2424,20 +2684,16 @@ document.addEventListener("DOMContentLoaded", function () {
             showToast('toastNoNotesToReset', 'info');
             return;
         }
-
         const batch = db.batch();
         notes.forEach(note => {
             if (note.completed) {
-                const noteRef = notesCollection.doc(note.id);
+                const noteRef = db.collection('notes').doc(note.id);
                 batch.update(noteRef, { completed: false });
             }
         });
-
         try {
-            if (notes.some(note => note.completed)) {
-                await batch.commit();
-                showToast('toastAllNotesReset', 'success');
-            }
+            await batch.commit();
+            showToast('toastAllNotesReset', 'success');
         } catch (error) {
             console.error("Error resetting all notes: ", error);
             showToast('toastErrorResettingAllNotes', 'error');
@@ -2654,6 +2910,27 @@ document.addEventListener("DOMContentLoaded", function () {
             document.documentElement.style.setProperty('--notes-grid-columns', defaultColumns);
         }
     });
+
+    firebase.auth().onAuthStateChanged((user) => {
+        if (user) {
+            // Update user info
+            if (userName) userName.textContent = user.displayName || 'User';
+            if (userEmail) userEmail.textContent = user.email;
+
+            // Update avatar
+            const avatarElement = document.querySelector('#userAvatar i');
+            if (user.photoURL && avatarElement) {
+                // Replace icon with actual image
+                avatarElement.parentElement.innerHTML = `
+                <img src="${user.photoURL}" 
+                     alt="Avatar" 
+                     style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; cursor: pointer;">
+            `;
+            }
+        }
+    });
+
 });
+
 
 //'Shift + Alt + F - Format toàn bộ file'
