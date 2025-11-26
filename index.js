@@ -129,6 +129,7 @@ document.addEventListener("DOMContentLoaded", function () {
     let currentUser = null;
     let notes = [];
     let tags = [];
+    let currentSubTasks = [];
     let noteToDeleteId = null;
     let editingNoteKey = null;
     let editingTagId = null;
@@ -260,6 +261,9 @@ document.addEventListener("DOMContentLoaded", function () {
         const expectedDuration = parseInt(expectedDurationInput.value) || 30;
         const selectedTagRadio = document.querySelector('input[name="noteTag"]:checked');
 
+        // **MỚI: Lấy sub-tasks**
+        const subTasks = getSubTasksFromForm();
+
         let tagId = null;
         if (selectedTagRadio) {
             tagId = selectedTagRadio.value;
@@ -271,13 +275,14 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         const noteData = {
-            userId: currentUser.uid, // QUAN TRỌNG: Thêm userId
+            userId: currentUser.uid,
             title,
             content,
             tag: tagId,
             time: time,
             dayOfWeek: dayOfWeek,
             expectedDuration: expectedDuration,
+            subTasks: subTasks, // **MỚI**
             actualDuration: null,
             startTime: null,
             endTime: null,
@@ -287,7 +292,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
         try {
             if (editingNoteKey) {
-                // Khi update không cần gửi lại userId nếu không muốn ghi đè
                 delete noteData.userId;
                 await db.collection('notes').doc(editingNoteKey).update(noteData);
                 showToast('toastNoteUpdated', 'success');
@@ -401,6 +405,14 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    document.getElementById('addSubTaskBtn').addEventListener('click', () => {
+        addSubTaskInput();
+    });
+
+    document.getElementById('addQRSubTaskBtn').addEventListener('click', () => {
+        addQRSubTaskInput();
+    });
+
     document.addEventListener('click', (e) => {
         if (userAvatar && !userAvatar.contains(e.target) && !userDropdown.contains(e.target)) {
             userDropdown.style.display = 'none';
@@ -420,7 +432,8 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (profileBtn) {
-        profileBtn.addEventListener("click", () => {
+        // Chuyển thành async để đợi lấy dữ liệu từ DB
+        profileBtn.addEventListener("click", async () => {
             // Ẩn dropdown menu trước
             if (userDropdown) userDropdown.style.display = 'none';
 
@@ -429,17 +442,40 @@ document.addEventListener("DOMContentLoaded", function () {
             profileModal.classList.add("active");
             document.body.style.overflow = "hidden";
 
-            // Điền dữ liệu hiện tại
+            // 1. Điền Email (Luôn có)
             profileEmailInput.value = currentUser.email;
-            profileNameInput.value = currentUser.displayName || "";
 
-            // Format ngày tham gia
-            if (currentUser.metadata && currentUser.metadata.creationTime) {
-                const date = new Date(currentUser.metadata.creationTime);
-                profileJoinedInput.value = date.toLocaleDateString('vi-VN');
+            // 2. Xử lý hiển thị Tên (Ưu tiên lấy từ Firestore để chính xác nhất)
+            try {
+                // Hiện loading tạm thời hoặc tên cũ trong khi đợi
+                profileNameInput.value = currentUser.displayName || "Đang tải...";
+
+                // Lấy dữ liệu mới nhất từ Firestore
+                const userDoc = await db.collection('users').doc(currentUser.uid).get();
+
+                if (userDoc.exists) {
+                    const userData = userDoc.data();
+                    // Ưu tiên tên trong DB > tên trong Auth > Rỗng
+                    profileNameInput.value = userData.name || currentUser.displayName || "";
+                } else {
+                    // Nếu không có trong DB, dùng tên Auth
+                    profileNameInput.value = currentUser.displayName || "";
+                }
+            } catch (error) {
+                console.error("Error fetching user profile:", error);
+                profileNameInput.value = currentUser.displayName || "";
             }
 
-            // Hiển thị Avatar
+            // 3. Format ngày tham gia
+            if (currentUser.metadata && currentUser.metadata.creationTime) {
+                const date = new Date(currentUser.metadata.creationTime);
+                const lang = translations[currentLanguage];
+                // Format ngày theo ngôn ngữ
+                const locale = currentLanguage === 'vi' ? 'vi-VN' : 'en-US';
+                profileJoinedInput.value = date.toLocaleDateString(locale);
+            }
+
+            // 4. Hiển thị Avatar
             if (currentUser.photoURL) {
                 profileAvatarDisplay.innerHTML = `<img src="${currentUser.photoURL}" style="width: 100%; height: 100%; object-fit: cover;">`;
             } else {
@@ -447,6 +483,7 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
     }
+
 
     // Đóng Modal Hồ sơ
     if (closeProfileModalBtn) {
@@ -490,16 +527,12 @@ document.addEventListener("DOMContentLoaded", function () {
             const lang = translations[currentLanguage]; // Lấy ngôn ngữ hiện tại
             if (!currentUser.email) return;
 
-            const confirmMsg = lang.confirmResetPassword.replace('{email}', currentUser.email);
-
-            if (confirm(confirmMsg)) {
-                try {
-                    await auth.sendPasswordResetEmail(currentUser.email);
-                    showToast(lang.toastResetEmailSent, "success");
-                } catch (error) {
-                    console.error("Error sending password reset:", error);
-                    showToast(lang.toastResetEmailError + error.message, "error");
-                }
+            try {
+                await auth.sendPasswordResetEmail(currentUser.email);
+                showToast(lang.toastResetEmailSent, "success");
+            } catch (error) {
+                console.error("Error sending password reset:", error);
+                showToast(lang.toastResetEmailError + error.message, "error");
             }
         });
     }
@@ -513,7 +546,6 @@ document.addEventListener("DOMContentLoaded", function () {
             'appNameLabel': 'Tên ứng dụng:',
             'appNamePlaceholder': 'Ví dụ: Ghi Chú Của Tôi',
             'defaultAppName': 'Ghi chú của tôi',
-            'appSlogan': 'Lưu trữ ghi chú của bạn một cách phong cách',
             'searchInputPlaceholder': 'Tìm kiếm ghi chú...',
             'allNotesOption': 'Tất cả ghi chú',
             'completedNotesOption': 'Đã hoàn thành',
@@ -683,13 +715,44 @@ document.addEventListener("DOMContentLoaded", function () {
             'toastProfileUpdateError': 'Lỗi khi cập nhật hồ sơ: ',
             'confirmResetPassword': 'Gửi email đổi mật khẩu đến {email}?',
             'toastResetEmailSent': 'Đã gửi email! Vui lòng kiểm tra hộp thư.',
-            'toastResetEmailError': 'Lỗi gửi email: '
+            'toastResetEmailError': 'Lỗi gửi email: ',
+            'subTasksLabel': 'Công việc cần thực hiện',
+            'addSubTask': 'Thêm công việc',
+            'subTaskPlaceholder': 'Mô tả công việc...',
+            'subTaskLinkPlaceholder': 'Đường dẫn (tùy chọn)',
+            'copyLink': 'Copy',
+            'linkCopied': 'Đã sao chép đường dẫn!',
+            'linkCopyFailed': 'Không thể sao chép!',
+            'noLink': 'Chưa có đường dẫn!',
+            'subTaskUpdated': 'Đã cập nhật trạng thái!',
+            'minOneSubTask': 'Phải có ít nhất 1 công việc!',
+            'subTaskUpdateError': 'Lỗi khi cập nhật!',
+            'generateQR': 'Tạo mã QR',
+            'editBtn': 'Sửa',
+            'deleteBtn': 'Xóa',
+            'timeStatusCompleted': 'Đã hoàn thành',
+            'timeStatusOverdueHours': 'Trễ {hours} giờ {minutes} phút',
+            'timeStatusOverdueMinutes': 'Trễ {minutes} phút',
+            'timeStatusNow': 'Sắp đến giờ (dưới 5 phút)',
+            'timeStatusSoon': 'Sắp đến ({minutes} phút nữa)',
+            'timeStatusUpcoming': 'Sắp đến ({minutes} phút nữa)',
+            'timeStatusFutureHours': 'Còn {hours} giờ {minutes} phút',
+            'timeStatusFutureMinutes': 'Còn {minutes} phút',
+            'subTaskProgressLabel': 'Tiến độ công việc',
+            'noNotesToCompleteOnDay': 'Không có ghi chú nào cần hoàn thành cho ngày này!',
+            'completeAllSuccess': 'Đã hoàn thành tất cả ghi chú của {day}!',
+            'completeAllError': 'Lỗi khi hoàn thành tất cả ghi chú.',
+
+            'noNotesToResetOnDay': 'Không có ghi chú nào để đặt lại trong ngày này!',
+            'resetAllSuccess': 'Đã đặt lại (Bắt đầu ngày mới) cho {day}!',
+            'resetAllError': 'Lỗi khi đặt lại ghi chú.',
+            'excelColSubTasks': 'Công việc con (Tiến độ)',
+            'manageTagsShort': 'Quản lý thẻ'
         },
         'en': {
             'appNameLabel': 'App Name:',
             'appNamePlaceholder': 'Example: My Notes',
             'defaultAppName': 'My notes',
-            'appSlogan': 'Store your notes in style',
             'searchInputPlaceholder': 'Search notes...',
             'allNotesOption': 'All notes',
             'completedNotesOption': 'Completed',
@@ -860,7 +923,40 @@ document.addEventListener("DOMContentLoaded", function () {
             'toastProfileUpdateError': 'Error updating profile: ',
             'confirmResetPassword': 'Send password reset email to {email}?',
             'toastResetEmailSent': 'Email sent! Please check your inbox.',
-            'toastResetEmailError': 'Error sending email: '
+            'toastResetEmailError': 'Error sending email: ',
+            'subTasksLabel': 'Tasks to Complete',
+            'addSubTask': 'Add Task',
+            'subTaskPlaceholder': 'Task description...',
+            'subTaskLinkPlaceholder': 'Link (optional)',
+            'copyLink': 'Copy',
+            'linkCopied': 'Link copied!',
+            'linkCopyFailed': 'Cannot copy!',
+            'noLink': 'No link available!',
+            'subTaskUpdated': 'Status updated!',
+            'minOneSubTask': 'Must have at least 1 task!',
+            'subTaskUpdateError': 'Update error!',
+            'generateQR': 'Generate QR',
+            'editBtn': 'Edit',
+            'deleteBtn': 'Delete',
+            'timeStatusCompleted': 'Completed',
+            'timeStatusOverdueHours': '{hours}h {minutes}m overdue',
+            'timeStatusOverdueMinutes': '{minutes}m overdue',
+            'timeStatusNow': 'Starting soon (under 5 min)',
+            'timeStatusSoon': 'Coming up in {minutes} min',
+            'timeStatusUpcoming': 'Coming up in {minutes} min',
+            'timeStatusFutureHours': '{hours}h {minutes}m remaining',
+            'timeStatusFutureMinutes': '{minutes}m remaining',
+            'subTaskProgressLabel': 'Sub-tasks Progress',
+            'noNotesToCompleteOnDay': 'No notes to complete for this day!',
+            'completeAllSuccess': 'All notes for {day} completed!',
+            'completeAllError': 'Error completing all notes.',
+
+            'noNotesToResetOnDay': 'No notes to reset for this day!',
+            'confirmResetDay': 'Are you sure you want to reset {count} notes for {day}?',
+            'resetAllSuccess': 'Reset (Start new day) for {day} successful!',
+            'resetAllError': 'Error resetting notes.',
+            'excelColSubTasks': 'Sub-tasks (Progress)',
+            'manageTagsShort': 'Manage tag'
         }
     };
 
@@ -868,6 +964,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function applyTranslations() {
         const lang = translations[currentLanguage];
+
+        const setText = (id, text) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = text;
+        };
+
+        const setHTML = (id, html) => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = html;
+        };
 
         // Header
         const savedAppName = localStorage.getItem('appName');
@@ -945,10 +1051,18 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById('exportExcelBtn').innerHTML = lang.exportExcelBtn;
         const noteTagLabelElements = document.querySelectorAll('.form-group label');
         noteTagLabelElements.forEach(label => {
-            if (label.nextElementSibling && label.nextElementSibling.id === 'noteTagsContainer') {
-                label.textContent = lang.noteTagLabel;
+            // Tìm span bên trong label để chỉ thay đổi text của nó
+            const span = label.querySelector('span');
+            if (span && label.nextElementSibling && label.nextElementSibling.id === 'noteTagsContainer') {
+                span.textContent = lang.noteTagLabel;
             }
         });
+
+        const manageTagsBtn = document.getElementById('manageTagsBtn');
+        if (manageTagsBtn) {
+            const text = lang.manageTagsShort || 'Quản lý thẻ';
+            manageTagsBtn.innerHTML = `<i class="fas fa-cog"></i> ${text}`;
+        }
 
         document.getElementById('manageTagsBtn').innerHTML = lang.manageTagsBtn;
 
@@ -1112,6 +1226,53 @@ document.addEventListener("DOMContentLoaded", function () {
 
         const saveProfileBtn = document.getElementById('saveProfileBtn');
         if (saveProfileBtn) saveProfileBtn.textContent = lang.saveProfileBtn;
+
+        const subTasksLabel = document.getElementById('subTasksLabel');
+        if (subTasksLabel) subTasksLabel.textContent = lang.subTasksLabel;
+
+        const addSubTaskBtn = document.getElementById('addSubTaskBtn');
+        if (addSubTaskBtn) {
+            addSubTaskBtn.innerHTML = `<i class="fas fa-plus"></i> ${lang.addSubTask}`;
+        }
+
+        document.querySelectorAll('.sub-task-text-input').forEach(input => {
+            input.placeholder = lang.subTaskPlaceholder;
+        });
+
+        document.querySelectorAll('.sub-task-link-input').forEach(input => {
+            input.placeholder = lang.subTaskLinkPlaceholder;
+        });
+
+        const viewSubTasksLabel = document.querySelector('#viewSubTasksGroup .form-label');
+        if (viewSubTasksLabel) viewSubTasksLabel.textContent = lang.subTasksLabel;
+
+        // Copy button text trong view sub-tasks
+        document.querySelectorAll('.copy-link-btn').forEach(btn => {
+            const icon = btn.querySelector('i');
+            btn.innerHTML = '';
+            btn.appendChild(icon);
+            btn.innerHTML += ` ${lang.copyLink}`;
+        });
+
+        const qrConfirmMessage = document.getElementById('qrConfirmMessage');
+        if (qrConfirmMessage) qrConfirmMessage.textContent = lang.qrConfirmMessage;
+
+        const qrSubTasksLabel = document.getElementById('qrSubTasksLabel');
+        if (qrSubTasksLabel) qrSubTasksLabel.textContent = lang.subTasksLabel;
+
+        const addQRSubTaskBtn = document.getElementById('addQRSubTaskBtn');
+        if (addQRSubTaskBtn) {
+            addQRSubTaskBtn.innerHTML = `<i class="fas fa-plus"></i> ${lang.addSubTask}`;
+        }
+
+        // Cập nhật placeholder cho QR sub-task inputs
+        document.querySelectorAll('#qrSubTasksContainer .sub-task-text-input').forEach(input => {
+            input.placeholder = lang.subTaskPlaceholder;
+        });
+
+        document.querySelectorAll('#qrSubTasksContainer .sub-task-link-input').forEach(input => {
+            input.placeholder = lang.subTaskLinkPlaceholder;
+        });
     }
 
     async function handlePasteLink() {
@@ -1373,12 +1534,11 @@ document.addEventListener("DOMContentLoaded", function () {
         return tag.name;
     }
 
-    // Áp dụng màu nền và màu chữ tương phản cho thẻ hiển thị trong note card
     function renderNotes(notesToRender = notes) {
         notesContainer.innerHTML = "";
 
         if (tags.length === 0) {
-            return; // Thoát và đợi tags snapshot trigger lại renderNotes
+            return;
         }
 
         const sortedNotes = sortNotesByTime([...notesToRender]);
@@ -1389,34 +1549,79 @@ document.addEventListener("DOMContentLoaded", function () {
             const tagIcon = noteTagObject ? noteTagObject.icon : '';
             const tagColor = noteTagObject ? (noteTagObject.color || '#e0e0e0') : '#e0e0e0';
             const tagTextColor = getContrastYIQ(tagColor); // Tính màu chữ tương phản
+            let progressHTML = '';
+            if (note.subTasks && note.subTasks.length > 0) {
+                const progress = calculateProgress(note.subTasks);
+                let progressAttr = '';
 
+                if (progress === 0) {
+                    progressAttr = 'data-progress="0"';
+                } else if (progress === 100) {
+                    progressAttr = 'data-progress="complete"';
+                } else if (progress <= 33) {
+                    progressAttr = 'data-progress="low"';
+                } else if (progress <= 66) {
+                    progressAttr = 'data-progress="medium"';
+                } else {
+                    progressAttr = 'data-progress="high"';
+                }
+
+                progressHTML = `
+                <span class="note-progress" ${progressAttr}>
+                    <i class="fas fa-tasks"></i> ${progress}%
+                </span>
+            `;
+            }
+
+            const timeStatus = getNoteTimeStatus(note);
+            const timeTooltip = getTimeStatusText(note, timeStatus);
+            const overdueClass = timeStatus === 'overdue' ? 'overdue' : '';
             const noteElement = document.createElement("div");
             noteElement.className = `note-card fade-in ${note.completed ? 'completed' : ''}`;
             noteElement.innerHTML = `
-<div class="note-content" data-id="${note.id}">
-    <div class="note-header">
-        <h3 class="note-title">${note.title}</h3>
-        <div class="note-actions">
-            <button class="qr-btn" data-id="${note.id}" title="Tạo mã QR">
-                <i class="fas fa-qrcode"></i>
-            </button>
-            <button class="edit-btn" data-id="${note.id}">
-                <i class="fas fa-edit"></i>
-            </button>
-            <button class="delete-btn" data-id="${note.id}">
-                <i class="fas fa-trash"></i>
-            </button>
-        </div>
-    </div>
-    <p class="note-text">${note.content}</p>
-    <div class="note-footer">
-        <span class="note-tag" style="background-color: ${tagColor}; color: ${tagTextColor}; --tag-custom-color: ${tagColor};">
-            ${tagIcon ? `<i class="${tagIcon}"></i>` : ''} ${tagName}
-        </span>
-        ${!note.completed ? `<button class="complete-btn" data-id="${note.id}">${translations[currentLanguage].completeBtn || 'Hoàn thành'}</button>` : ''}
-        <span class="note-date ${isNoteOverdue(note) ? 'overdue' : ''}">${note.time || '--:--'}</span>
-    </div>
-</div>`;
+            <div class="note-content" data-id="${note.id}">
+                <div class="note-header">
+                    <h3 class="note-title">${note.title}</h3>
+                    <div class="note-actions">
+                            <button class="qr-btn" 
+                                data-id="${note.id}" 
+                                title="${translations[currentLanguage].generateQR || 'Tạo mã QR'}">
+                            <i class="fas fa-qrcode"></i>
+                        </button>
+                        ${!note.completed ? `
+                            <button class="complete-btn-header" 
+                                    data-id="${note.id}" 
+                                    title="${translations[currentLanguage].completeBtn || 'Hoàn thành'}">
+                                <i class="fas fa-check"></i>
+                            </button>
+                        ` : ''}
+
+                        <button class="edit-btn" 
+                                data-id="${note.id}"
+                                title="${translations[currentLanguage].editBtn || 'Sửa'}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="delete-btn" 
+                                data-id="${note.id}"
+                                title="${translations[currentLanguage].deleteBtn || 'Xóa'}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <p class="note-text">${note.content}</p>
+                <div class="note-footer">
+                    <span class="note-tag" style="background-color: ${tagColor}; color: ${tagTextColor}; --tag-custom-color: ${tagColor};">
+                        ${tagIcon ? `<i class="${tagIcon}"></i>` : ''} ${tagName}
+                    </span>
+                    ${progressHTML}
+                    <span class="note-date ${overdueClass}" 
+                          data-status="${timeStatus}"
+                          data-tooltip="${timeTooltip}">
+                        ${note.time || '--:--'}
+                    </span>
+                </div>
+            </div>
+        `;
             notesContainer.appendChild(noteElement);
         });
 
@@ -1437,7 +1642,7 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         });
 
-        document.querySelectorAll(".complete-btn").forEach((button) => {
+        document.querySelectorAll(".complete-btn-header").forEach((button) => {
             button.addEventListener("click", async function (event) {
                 event.stopPropagation();
                 const noteId = this.getAttribute("data-id");
@@ -1446,24 +1651,20 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (note) {
                     const now = new Date();
                     const endTime = now.toISOString();
-
-                    // Tính actual duration (nếu có startTime)
                     let actualDuration = null;
                     let isOnTime = null;
 
                     if (note.startTime) {
                         const start = new Date(note.startTime);
                         const end = new Date(endTime);
-                        actualDuration = Math.round((end - start) / 60000); // Convert to minutes
+                        actualDuration = Math.round((end - start) / 60000);
                     } else {
-                        // Nếu không có startTime, giả sử bắt đầu từ thời gian trong note
                         const [hours, minutes] = note.time.split(':');
                         const start = new Date();
                         start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
                         actualDuration = Math.round((now - start) / 60000);
                     }
 
-                    // So sánh với expected duration
                     if (note.expectedDuration && actualDuration) {
                         isOnTime = actualDuration <= note.expectedDuration;
                     }
@@ -1508,7 +1709,205 @@ document.addEventListener("DOMContentLoaded", function () {
 
     }
 
-    // getTagIcon và getTagName giữ nguyên
+    function addSubTaskInput(taskData = null) {
+        const container = document.getElementById('subTasksContainer');
+        const taskId = taskData?.id || Date.now().toString();
+        const lang = translations[currentLanguage];
+
+        const taskItem = document.createElement('div');
+        taskItem.className = 'sub-task-item';
+        taskItem.dataset.taskId = taskId;
+        taskItem.dataset.completed = taskData?.completed || 'false';
+
+        // **MỚI: HTML đơn giản hơn - không có checkbox và copy button**
+        taskItem.innerHTML = `
+        <div class="sub-task-content">
+            <input type="text" 
+                   class="sub-task-text-input" 
+                   placeholder="${lang.subTaskPlaceholder}" 
+                   value="${taskData?.text || ''}">
+            <input type="url" 
+                   class="sub-task-link-input" 
+                   placeholder="${lang.subTaskLinkPlaceholder}" 
+                   value="${taskData?.link || ''}">
+        </div>
+        <div class="sub-task-actions">
+            <button type="button" class="sub-task-btn remove-sub-task-btn" title="${lang.deleteBtnConfirm}">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    `;
+
+        container.appendChild(taskItem);
+
+        // **Event listener chỉ còn nút xóa**
+        const removeBtn = taskItem.querySelector('.remove-sub-task-btn');
+        removeBtn.addEventListener('click', () => {
+            const totalSubTasks = container.querySelectorAll('.sub-task-item').length;
+            if (totalSubTasks > 1) {
+                taskItem.remove();
+            } else {
+                showToast(lang.minOneSubTask, 'warning');
+            }
+        });
+
+        // **Auto focus vào input text của sub-task mới thêm**
+        const textInput = taskItem.querySelector('.sub-task-text-input');
+        if (!taskData) {
+            setTimeout(() => textInput.focus(), 100);
+        }
+    }
+
+
+    function getSubTasksFromForm() {
+        const container = document.getElementById('subTasksContainer');
+        const items = container.querySelectorAll('.sub-task-item');
+        const subTasks = [];
+
+        items.forEach(item => {
+            const text = item.querySelector('.sub-task-text-input').value.trim();
+            const link = item.querySelector('.sub-task-link-input').value.trim();
+
+            const id = item.dataset.taskId;
+            const completed = item.dataset.completed === 'true';
+
+            // **MỚI: Chỉ thêm sub-task nếu có text (bỏ qua sub-task trống)**
+            if (text) {
+                subTasks.push({ id, text, link, completed });
+            }
+        });
+
+        return subTasks;
+    }
+
+    // Hàm tính phần trăm hoàn thành
+    function calculateProgress(subTasks) {
+        if (!subTasks || subTasks.length === 0) return 0;
+        const completed = subTasks.filter(task => task.completed).length;
+        return Math.round((completed / subTasks.length) * 100);
+    }
+
+    function renderViewSubTasks(note) {
+        const group = document.getElementById('viewSubTasksGroup');
+        const list = document.getElementById('viewSubTasksList');
+        const progressFill = document.getElementById('viewProgressFill');
+        const progressText = document.getElementById('viewProgressText');
+        const lang = translations[currentLanguage];
+
+        if (!note.subTasks || note.subTasks.length === 0) {
+            group.style.display = 'none';
+            return;
+        }
+
+        group.style.display = 'block';
+        list.innerHTML = '';
+
+        const progress = calculateProgress(note.subTasks);
+        progressFill.style.width = `${progress}%`;
+        progressText.textContent = `${progress}%`;
+
+        // **MỚI: Thêm data attribute để CSS áp dụng màu**
+        if (progress <= 33) {
+            progressFill.setAttribute('data-progress', 'low');
+        } else if (progress <= 66) {
+            progressFill.setAttribute('data-progress', 'medium');
+        } else {
+            progressFill.setAttribute('data-progress', 'high');
+        }
+
+        note.subTasks.forEach(task => {
+            const item = document.createElement('div');
+            item.className = `view-sub-task-item ${task.completed ? 'completed' : ''}`;
+
+            item.innerHTML = `
+            <input type="checkbox" 
+                   class="view-sub-task-checkbox" 
+                   data-task-id="${task.id}"
+                   data-note-id="${note.id}"
+                   ${task.completed ? 'checked' : ''}>
+            <span class="view-sub-task-text">${task.text}</span>
+            ${task.link ? `
+                <div class="view-sub-task-link">
+                    <button class="copy-link-btn" data-link="${task.link}">
+                        <i class="fas fa-copy"></i> ${lang.copyLink}
+                    </button>
+                </div>
+            ` : ''}
+        `;
+
+            list.appendChild(item);
+
+            const checkbox = item.querySelector('.view-sub-task-checkbox');
+            checkbox.addEventListener('change', async (e) => {
+                const noteId = e.target.dataset.noteId;
+                const taskId = e.target.dataset.taskId;
+                const completed = e.target.checked;
+
+                await updateSubTaskStatus(noteId, taskId, completed);
+            });
+
+            if (task.link) {
+                const copyBtn = item.querySelector('.copy-link-btn');
+                copyBtn.addEventListener('click', () => {
+                    navigator.clipboard.writeText(task.link)
+                        .then(() => showToast(lang.linkCopied, 'success'))
+                        .catch(() => showToast(lang.linkCopyFailed, 'error'));
+                });
+            }
+        });
+    }
+
+    async function updateSubTaskStatus(noteId, taskId, completed) {
+        const lang = translations[currentLanguage];
+
+        try {
+            const noteRef = db.collection('notes').doc(noteId);
+            const noteDoc = await noteRef.get();
+            const noteData = noteDoc.data();
+
+            const updatedSubTasks = noteData.subTasks.map(task =>
+                task.id === taskId ? { ...task, completed } : task
+            );
+
+            await noteRef.update({ subTasks: updatedSubTasks });
+
+            // Cập nhật progress
+            const progress = calculateProgress(updatedSubTasks);
+            const progressFill = document.getElementById('viewProgressFill');
+            const progressText = document.getElementById('viewProgressText');
+
+            progressFill.style.width = `${progress}%`;
+            progressText.textContent = `${progress}%`;
+
+            // **MỚI: Cập nhật màu progress bar**
+            if (progress <= 33) {
+                progressFill.setAttribute('data-progress', 'low');
+            } else if (progress <= 66) {
+                progressFill.setAttribute('data-progress', 'medium');
+            } else {
+                progressFill.setAttribute('data-progress', 'high');
+            }
+
+            // Cập nhật class cho sub-task item
+            const checkbox = document.querySelector(`[data-task-id="${taskId}"][data-note-id="${noteId}"]`);
+            if (checkbox) {
+                const subTaskItem = checkbox.closest('.view-sub-task-item');
+                if (subTaskItem) {
+                    if (completed) {
+                        subTaskItem.classList.add('completed');
+                    } else {
+                        subTaskItem.classList.remove('completed');
+                    }
+                }
+            }
+
+            showToast(lang.subTaskUpdated, 'success');
+        } catch (error) {
+            console.error('Error updating sub-task:', error);
+            showToast(lang.subTaskUpdateError, 'error');
+        }
+    }
+
 
     function setDefaultTime() {
         const now = new Date();
@@ -1522,19 +1921,30 @@ document.addEventListener("DOMContentLoaded", function () {
         document.body.style.overflow = "hidden";
         noteForm.reset();
 
-        // Lấy ngôn ngữ hiện tại
+        // **MỚI: Clear sub-tasks container**
+        const subTasksContainer = document.getElementById('subTasksContainer');
+        subTasksContainer.innerHTML = '';
+
         const lang = translations[currentLanguage];
 
         if (note) {
             // Chế độ Sửa
-            modalTitle.textContent = lang.editNoteModalTitle; // Sử dụng biến lang
-            submitNoteBtn.textContent = lang.updateNoteBtn;   // Sử dụng biến lang
+            modalTitle.textContent = lang.editNoteModalTitle;
+            submitNoteBtn.textContent = lang.updateNoteBtn;
 
             document.getElementById("noteTitle").value = note.title;
             document.getElementById("noteContent").value = note.content;
             document.getElementById("noteTime").value = note.time;
             noteDayOfWeekSelect.value = note.dayOfWeek || new Date().getDay();
-            document.getElementById("expectedDuration").value = note.expectedDuration || 30; // Load thời gian dự kiến
+            document.getElementById("expectedDuration").value = note.expectedDuration || 30;
+
+            // **MỚI: Load sub-tasks hoặc tạo 1 sub-task trống**
+            if (note.subTasks && note.subTasks.length > 0) {
+                note.subTasks.forEach(task => addSubTaskInput(task));
+            } else {
+                // Nếu không có sub-tasks, tạo 1 sub-task trống
+                addSubTaskInput();
+            }
 
             renderTagOptions(note.tag);
             editingNoteKey = note.id;
@@ -1545,11 +1955,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
             setDefaultTime();
             noteDayOfWeekSelect.value = new Date().getDay();
+
+            // **MỚI: Tạo 1 sub-task trống mặc định**
+            addSubTaskInput();
+
             renderTagOptions();
             editingNoteKey = null;
         }
-    }
 
+        setTimeout(() => {
+            document.getElementById("noteTitle").focus();
+        }, 200);
+    }
 
     function closeAddNoteModal() {
         addNoteModal.classList.remove("active");
@@ -1781,17 +2198,16 @@ document.addEventListener("DOMContentLoaded", function () {
             time: note.time,
             dayOfWeek: note.dayOfWeek || 0,
             tag: note.tag,
-            expectedDuration: note.expectedDuration || 30
+            expectedDuration: note.expectedDuration || 30,
+            subTasks: note.subTasks || [] // **MỚI: Thêm sub-tasks vào QR**
         };
 
         const qrDataString = JSON.stringify(qrData);
 
-        // Lấy container thay vì canvas cũ
         const container = document.querySelector('.qr-code-display');
-        container.innerHTML = ''; // Xóa nội dung cũ
+        container.innerHTML = '';
 
         try {
-            // Kiểm tra kjua đã load chưa
             if (typeof kjua === 'undefined') {
                 showToast('Lỗi thư viện QR. Vui lòng tải lại trang.', 'error');
                 return;
@@ -1801,22 +2217,86 @@ document.addEventListener("DOMContentLoaded", function () {
                 text: qrDataString,
                 size: 200,
                 fill: '#000000',
-                back: '#FFFFFF', // Nền trắng
+                back: '#FFFFFF',
                 rounded: 0,
-                quiet: 1, // Vùng đệm trắng xung quanh
+                quiet: 1,
                 mode: 'plain',
-                render: 'canvas' // Render ra thẻ canvas để dễ download
+                render: 'canvas'
             });
 
-            // Gán ID để hàm download tìm thấy
             qrCode.id = 'qrCodeCanvas';
-
-            // Thêm vào DOM
             container.appendChild(qrCode);
 
         } catch (error) {
             showToast('qrScanError', 'error');
         }
+    }
+
+    // Hàm thêm sub-task vào QR form
+    function addQRSubTaskInput(taskData = null) {
+        const container = document.getElementById('qrSubTasksContainer');
+        const taskId = taskData?.id || Date.now().toString();
+        const lang = translations[currentLanguage];
+
+        const taskItem = document.createElement('div');
+        taskItem.className = 'sub-task-item';
+        taskItem.dataset.taskId = taskId;
+        taskItem.dataset.completed = taskData?.completed || 'false';
+
+        taskItem.innerHTML = `
+        <div class="sub-task-content">
+            <input type="text" 
+                   class="sub-task-text-input" 
+                   placeholder="${lang.subTaskPlaceholder}" 
+                   value="${taskData?.text || ''}">
+            <input type="url" 
+                   class="sub-task-link-input" 
+                   placeholder="${lang.subTaskLinkPlaceholder}" 
+                   value="${taskData?.link || ''}">
+        </div>
+        <div class="sub-task-actions">
+            <button type="button" class="sub-task-btn remove-qr-sub-task-btn" title="${lang.deleteBtnConfirm}">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    `;
+
+        container.appendChild(taskItem);
+
+        const removeBtn = taskItem.querySelector('.remove-qr-sub-task-btn');
+        removeBtn.addEventListener('click', () => {
+            const totalSubTasks = container.querySelectorAll('.sub-task-item').length;
+            if (totalSubTasks > 1) {
+                taskItem.remove();
+            } else {
+                showToast(lang.minOneSubTask, 'warning');
+            }
+        });
+
+        const textInput = taskItem.querySelector('.sub-task-text-input');
+        if (!taskData) {
+            setTimeout(() => textInput.focus(), 100);
+        }
+    }
+
+    // Hàm lấy sub-tasks từ QR form
+    function getQRSubTasksFromForm() {
+        const container = document.getElementById('qrSubTasksContainer');
+        const items = container.querySelectorAll('.sub-task-item');
+        const subTasks = [];
+
+        items.forEach(item => {
+            const text = item.querySelector('.sub-task-text-input').value.trim();
+            const link = item.querySelector('.sub-task-link-input').value.trim();
+            const id = item.dataset.taskId;
+            const completed = item.dataset.completed === 'true';
+
+            if (text) {
+                subTasks.push({ id, text, link, completed });
+            }
+        });
+
+        return subTasks;
     }
 
     function downloadQRCode() {
@@ -1864,12 +2344,12 @@ document.addEventListener("DOMContentLoaded", function () {
             time: currentGeneratedNote.time,
             dayOfWeek: currentGeneratedNote.dayOfWeek || 0,
             tag: currentGeneratedNote.tag,
-            expectedDuration: currentGeneratedNote.expectedDuration || 30
+            expectedDuration: currentGeneratedNote.expectedDuration || 30,
+            subTasks: currentGeneratedNote.subTasks || [] // **MỚI**
         };
 
         const qrDataString = JSON.stringify(qrData);
 
-        // Copy to clipboard
         navigator.clipboard.writeText(qrDataString).then(() => {
             showToast('qrLinkCopied', 'success');
         }).catch(err => {
@@ -1877,21 +2357,122 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Add from QR Functions
+    // Hàm kiểm tra trạng thái thời gian của note
+    function getNoteTimeStatus(note) {
+        if (note.completed) {
+            return 'completed';
+        }
+
+        const [noteHour, noteMinute] = note.time.split(':').map(Number);
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const currentTotalMinutes = currentHour * 60 + currentMinute;
+        const noteTotalMinutes = noteHour * 60 + noteMinute;
+
+        const diffMinutes = noteTotalMinutes - currentTotalMinutes;
+
+        // Đã trễ
+        if (diffMinutes < 0) {
+            return 'overdue';
+        }
+        // Sắp đến (trong vòng 30 phút)
+        else if (diffMinutes <= 30) {
+            return 'upcoming';
+        }
+        // Chưa đến giờ
+        else {
+            return 'future';
+        }
+    }
+
+    // Hàm lấy text tooltip theo trạng thái
+    function getTimeStatusText(note, status) {
+        const lang = translations[currentLanguage];
+
+        if (status === 'completed') {
+            return lang.timeStatusCompleted || 'Đã hoàn thành';
+        }
+
+        const [noteHour, noteMinute] = note.time.split(':').map(Number);
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const currentTotalMinutes = currentHour * 60 + currentMinute;
+        const noteTotalMinutes = noteHour * 60 + noteMinute;
+        const diffMinutes = noteTotalMinutes - currentTotalMinutes;
+
+        if (status === 'overdue') {
+            const overdueMinutes = Math.abs(diffMinutes);
+            const hours = Math.floor(overdueMinutes / 60);
+            const minutes = overdueMinutes % 60;
+
+            if (hours > 0) {
+                return (lang.timeStatusOverdueHours || 'Trễ {hours} giờ {minutes} phút')
+                    .replace('{hours}', hours)
+                    .replace('{minutes}', minutes);
+            } else {
+                return (lang.timeStatusOverdueMinutes || 'Trễ {minutes} phút')
+                    .replace('{minutes}', minutes);
+            }
+        }
+
+        if (status === 'upcoming') {
+            if (diffMinutes <= 5) {
+                return lang.timeStatusNow || 'Sắp đến giờ (trong 5 phút)';
+            } else if (diffMinutes <= 15) {
+                return (lang.timeStatusSoon || 'Sắp đến ({minutes} phút nữa)')
+                    .replace('{minutes}', diffMinutes);
+            } else {
+                return (lang.timeStatusUpcoming || 'Sắp đến ({minutes} phút nữa)')
+                    .replace('{minutes}', diffMinutes);
+            }
+        }
+
+        if (status === 'future') {
+            const hours = Math.floor(diffMinutes / 60);
+            const minutes = diffMinutes % 60;
+
+            if (hours > 0) {
+                return (lang.timeStatusFutureHours || 'Còn {hours} giờ {minutes} phút')
+                    .replace('{hours}', hours)
+                    .replace('{minutes}', minutes);
+            } else {
+                return (lang.timeStatusFutureMinutes || 'Còn {minutes} phút')
+                    .replace('{minutes}', minutes);
+            }
+        }
+
+        return '';
+    }
+
     function openAddFromQRModal(noteData) {
         addFromQRModal.classList.add("active");
         document.body.style.overflow = "hidden";
 
-        // Populate form with scanned data
+        // **Clear sub-tasks container trước**
+        const qrSubTasksContainer = document.getElementById('qrSubTasksContainer');
+        qrSubTasksContainer.innerHTML = '';
+
+        // Populate form với dữ liệu từ QR
         document.getElementById("qrNoteTitleInput").value = noteData.title;
         document.getElementById("qrNoteContentInput").value = noteData.content;
         document.getElementById("qrNoteTimeInput").value = noteData.time || '';
         document.getElementById("qrNoteDayOfWeek").value = noteData.dayOfWeek || new Date().getDay();
         document.getElementById("qrExpectedDuration").value = noteData.expectedDuration || 30;
 
+        // **MỚI: Load sub-tasks từ QR data**
+        if (noteData.subTasks && noteData.subTasks.length > 0) {
+            noteData.subTasks.forEach(task => addQRSubTaskInput(task));
+        } else {
+            // Nếu không có sub-tasks, tạo 1 sub-task trống
+            addQRSubTaskInput();
+        }
+
         // Render tag options
         renderQRTagOptions(noteData.tag);
     }
+
 
     function closeAddFromQRModal() {
         addFromQRModal.classList.remove("active");
@@ -1940,6 +2521,9 @@ document.addEventListener("DOMContentLoaded", function () {
         const expectedDuration = parseInt(document.getElementById("qrExpectedDuration").value) || 30;
         const selectedTagRadio = document.querySelector('input[name="qrNoteTag"]:checked');
 
+        // **MỚI: Lấy sub-tasks từ form**
+        const subTasks = getQRSubTasksFromForm();
+
         let tagId = null;
         if (selectedTagRadio) {
             tagId = selectedTagRadio.value;
@@ -1958,6 +2542,7 @@ document.addEventListener("DOMContentLoaded", function () {
             time: time,
             dayOfWeek: dayOfWeek,
             expectedDuration: expectedDuration,
+            subTasks: subTasks, // **MỚI: Thêm sub-tasks**
             actualDuration: null,
             startTime: null,
             endTime: null,
@@ -1966,7 +2551,7 @@ document.addEventListener("DOMContentLoaded", function () {
         };
 
         try {
-            await notesCollection.add(newNoteData);
+            await db.collection('notes').add(newNoteData);
             showToast('toastNoteSaved', 'success');
             closeAddFromQRModal();
         } catch (error) {
@@ -1974,6 +2559,34 @@ document.addEventListener("DOMContentLoaded", function () {
             showToast('toastErrorSavingNote', 'error');
         }
     }
+
+    function updateAllTimeTooltips() {
+        document.querySelectorAll('.note-date').forEach(dateElement => {
+            const noteId = dateElement.closest('.note-content').getAttribute('data-id');
+            const note = notes.find(n => n.id === noteId);
+
+            if (note) {
+                const timeStatus = getNoteTimeStatus(note);
+                const timeTooltip = getTimeStatusText(note, timeStatus);
+
+                dateElement.setAttribute('data-status', timeStatus);
+
+                // SỬA Ở ĐÂY: Dùng data-tooltip thay vì title
+                dateElement.setAttribute('data-tooltip', timeTooltip);
+                dateElement.removeAttribute('title'); // Xóa title cũ nếu có
+
+                if (timeStatus === 'overdue') {
+                    dateElement.classList.add('overdue');
+                } else {
+                    dateElement.classList.remove('overdue');
+                }
+            }
+        });
+    }
+
+
+    // Cập nhật mỗi 30 giây
+    setInterval(updateAllTimeTooltips, 30000);
 
     function openViewNoteModal(note) {
         viewNoteModal.classList.add("active");
@@ -2027,6 +2640,7 @@ document.addEventListener("DOMContentLoaded", function () {
             });
             viewNoteActions.appendChild(uncompleteBtn);
         }
+        renderViewSubTasks(note);
     }
 
 
@@ -2067,7 +2681,7 @@ document.addEventListener("DOMContentLoaded", function () {
         // Lọc notes trong tuần này
         const now = new Date();
         const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - now.getDay()); // Chủ nhật
+        startOfWeek.setDate(now.getDate() - now.getDay());
         startOfWeek.setHours(0, 0, 0, 0);
 
         const weeklyNotes = notes.filter(note => {
@@ -2088,8 +2702,6 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById('totalTasksCount').textContent = totalTasks;
         document.getElementById('onTimeTasksCount').textContent = onTimeTasks;
         document.getElementById('lateTasksCount').textContent = lateTasks;
-
-        // SỬA Ở ĐÂY: Dùng lang.timeUnit thay vì chữ "phút" cứng
         document.getElementById('avgTimeValue').textContent = `${avgTime} ${lang.timeUnit}`;
 
         // Render detailed list
@@ -2122,124 +2734,162 @@ document.addEventListener("DOMContentLoaded", function () {
                 completedAtStr = `${hours}:${minutes} (${day}/${month})`;
             }
 
-            // --- BẮT ĐẦU SỬA: Logic chọn màu ---
-            // Nếu đúng hạn (isOnTime = true) -> Màu xanh (#059669)
-            // Nếu trễ (isOnTime = false) -> Màu cam đậm (#d97706)
             const completionColor = note.isOnTime ? '#059669' : '#d97706';
-            // --- KẾT THÚC SỬA ---
+
+            // **MỚI: Tính % hoàn thành sub-tasks**
+            let subTaskProgressHTML = '';
+            if (note.subTasks && note.subTasks.length > 0) {
+                const progress = calculateProgress(note.subTasks);
+                let progressClass = '';
+                let progressIcon = '';
+
+                if (progress === 100) {
+                    progressClass = 'complete';
+                    progressIcon = '✅';
+                } else if (progress >= 67) {
+                    progressClass = 'high';
+                    progressIcon = '🟢';
+                } else if (progress >= 34) {
+                    progressClass = 'medium';
+                    progressIcon = '🟡';
+                } else {
+                    progressClass = 'low';
+                    progressIcon = '🔴';
+                }
+
+                subTaskProgressHTML = `
+                <p style="margin-top: 5px;">
+                    <span class="sub-task-progress ${progressClass}">
+                        ${progressIcon} ${lang.subTaskProgressLabel || 'Tiến độ công việc'}: ${progress}% (${note.subTasks.filter(t => t.completed).length}/${note.subTasks.length})
+                    </span>
+                </p>
+            `;
+            }
 
             item.innerHTML = `
-        <i class="fas ${note.isOnTime ? 'fa-check-circle' : 'fa-exclamation-circle'} status-icon"></i>
-        <div class="note-info">
-            <h5>${note.title}</h5>
-            <p style="margin-bottom: 2px;"><i class="far fa-clock"></i> ${lang.reportSchedule}: ${getDayName(note.dayOfWeek || 0)} - ${note.time}</p>
-            
-            <p style="color: ${completionColor}; font-weight: 600;">
-                <i class="fas fa-check-double"></i> ${lang.reportCompleted}: ${completedAtStr}
-            </p>
-        </div>
-        <div class="time-stats">
-            <span>${lang.expectedTime}: ${note.expectedDuration || 0} ${lang.timeUnit}</span>
-            <span>${lang.actualTime}: ${note.actualDuration || 0} ${lang.timeUnit}</span>
-        </div>
-        <div class="time-diff ${timeDiff > 0 ? 'positive' : 'negative'}">
-            ${diffText}
-        </div>
-    `;
+            <i class="fas ${note.isOnTime ? 'fa-check-circle' : 'fa-exclamation-circle'} status-icon"></i>
+            <div class="note-info">
+                <h5>${note.title}</h5>
+                <p style="margin-bottom: 2px;">
+                    <i class="far fa-clock"></i> ${lang.reportSchedule}: ${getDayName(note.dayOfWeek || 0)} - ${note.time}
+                </p>
+                <p style="color: ${completionColor}; font-weight: 600;">
+                    <i class="fas fa-check-double"></i> ${lang.reportCompleted}: ${completedAtStr}
+                </p>
+                ${subTaskProgressHTML}
+            </div>
+            <div class="time-stats">
+                <span>${lang.expectedTime}: ${note.expectedDuration || 0} ${lang.timeUnit}</span>
+                <span>${lang.actualTime}: ${note.actualDuration || 0} ${lang.timeUnit}</span>
+            </div>
+            <div class="time-diff ${timeDiff > 0 ? 'positive' : 'negative'}">
+                ${diffText}
+            </div>
+        `;
 
             timeReportsList.appendChild(item);
         });
 
-
-        // Render chart (giữ nguyên logic cũ)
         renderTimeReportsChart(weeklyNotes);
     }
 
+function renderTimeReportsChart(weeklyNotes) {
+    // 1. Phá hủy instance chart cũ để tránh memory leak
+    if (window.timeReportsChartInstance) {
+        window.timeReportsChartInstance.destroy();
+    }
 
-    function renderTimeReportsChart(weeklyNotes) {
-        // Cần thêm Chart.js CDN vào HTML
-        // <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    // 2. Lấy container và TẠO LẠI canvas mới (Đây là bước quan trọng nhất)
+    const chartContainer = document.querySelector('.chart-container');
+    if (!chartContainer) return;
+    
+    // Xóa canvas cũ và tạo mới để đảm bảo không bị lỗi cache
+    chartContainer.innerHTML = '<canvas id="timeReportsChart"></canvas>';
+    
+    const ctx = document.getElementById('timeReportsChart');
+    if (!ctx) return;
 
-        const ctx = document.getElementById('timeReportsChart');
-        if (!ctx) return;
+    // 3. Chuẩn bị dữ liệu mới
+    const onTimeData = [0, 0, 0, 0, 0, 0, 0];
+    const lateData = [0, 0, 0, 0, 0, 0, 0];
 
-        // Nhóm theo ngày
-        const dayData = [0, 0, 0, 0, 0, 0, 0]; // 7 ngày
-        const onTimeData = [0, 0, 0, 0, 0, 0, 0];
-        const lateData = [0, 0, 0, 0, 0, 0, 0];
-
-        weeklyNotes.forEach(note => {
-            const day = note.dayOfWeek || 0;
-            dayData[day]++;
-            if (note.isOnTime) {
-                onTimeData[day]++;
-            } else {
-                lateData[day]++;
-            }
-        });
-
-        const lang = translations[currentLanguage];
-        const dayLabels = [
-            lang.sunday, lang.monday, lang.tuesday, lang.wednesday,
-            lang.thursday, lang.friday, lang.saturday
-        ];
-
-        // Destroy previous chart if exists
-        if (window.timeReportsChartInstance) {
-            window.timeReportsChartInstance.destroy();
+    weeklyNotes.forEach(note => {
+        const day = note.dayOfWeek || 0;
+        if (note.isOnTime) {
+            onTimeData[day]++;
+        } else {
+            lateData[day]++;
         }
+    });
 
-        window.timeReportsChartInstance = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: dayLabels,
-                datasets: [
-                    {
-                        label: lang.onTimeTasksText,
-                        data: onTimeData,
-                        backgroundColor: 'rgba(16, 185, 129, 0.8)',
-                        borderColor: 'rgb(16, 185, 129)',
-                        borderWidth: 1
-                    },
-                    {
-                        label: lang.lateTasksText,
-                        data: lateData,
-                        backgroundColor: 'rgba(239, 68, 68, 0.8)',
-                        borderColor: 'rgb(239, 68, 68)',
-                        borderWidth: 1
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: {
-                        position: 'top',
-                    },
-                    title: {
-                        display: true,
-                        text: lang.timeReportsModalTitle
-                    }
+    const lang = translations[currentLanguage];
+    const dayLabels = [
+        lang.sunday, lang.monday, lang.tuesday, lang.wednesday,
+        lang.thursday, lang.friday, lang.saturday
+    ];
+
+    // 4. Vẽ biểu đồ mới trên canvas mới
+    window.timeReportsChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: dayLabels,
+            datasets: [
+                {
+                    label: lang.onTimeTasksText,
+                    data: onTimeData,
+                    backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                    borderColor: 'rgb(16, 185, 129)',
+                    borderWidth: 1,
+                    borderRadius: 5, // Bo góc cho đẹp
                 },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
-                        }
+                {
+                    label: lang.lateTasksText,
+                    data: lateData,
+                    backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                    borderColor: 'rgb(239, 68, 68)',
+                    borderWidth: 1,
+                    borderRadius: 5, // Bo góc
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false, // Cho phép chart co giãn tốt hơn trong modal
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                title: {
+                    display: true,
+                    text: lang.timeReportsModalTitle,
+                    font: {
+                        size: 16
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    stacked: true, // Chồng 2 cột lên nhau
+                },
+                y: {
+                    stacked: true, // Chồng 2 cột lên nhau
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1 // Đảm bảo trục Y là số nguyên (1, 2, 3...)
                     }
                 }
             }
-        });
-    }
+        }
+    });
+}
+
 
 
     async function exportToExcel() {
         const lang = translations[currentLanguage];
 
         if (notes.length === 0) {
-            showToast('toastNoNotesToExport', 'info');
+            showToast(lang.toastNoNotesToExport, 'info');
             return;
         }
 
@@ -2251,23 +2901,53 @@ document.addEventListener("DOMContentLoaded", function () {
         const dayBgColors = ['FFFECACA', 'FFFED7AA', 'FFFEF3C7', 'FFD1FAE5', 'FFDBEAFE', 'FFE0E7FF', 'FFEDE9FE'];
 
         // ==========================================
-        // 1. SHEET TỔNG HỢP ("TẤT CẢ")
+        // HELPER: Format Sub-tasks text (CÓ LINK)
+        // ==========================================
+        const formatSubTasks = (subTasks) => {
+            if (!subTasks || subTasks.length === 0) return '';
+
+            const progress = calculateProgress(subTasks);
+            const total = subTasks.length;
+            const completed = subTasks.filter(t => t.completed).length;
+
+            // Dòng 1: Tổng quan tiến độ
+            let result = `[ ${progress}% ] (${completed}/${total})\n`;
+
+            // Các dòng sau: List công việc + Link
+            subTasks.forEach(task => {
+                const check = task.completed ? '☑' : '☐';
+                let line = `${check} ${task.text}`;
+
+                // **MỚI: Thêm link nếu có**
+                if (task.link && task.link.trim() !== '') {
+                    line += ` [Link: ${task.link}]`;
+                }
+
+                result += `${line}\n`;
+            });
+
+            return result;
+        };
+
+        // ==========================================
+        // 1. SHEET TỔNG HỢP
         // ==========================================
         const wsAll = workbook.addWorksheet(lang.excelSheetAll, {
             views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }]
         });
         wsAll.properties.tabColor = { argb: 'FF4F46E5' };
 
-        // Định nghĩa cột (Thêm 3 cột mới cuối cùng)
+        // Định nghĩa cột
         wsAll.columns = [
             { header: lang.excelColDay, key: 'day', width: 15 },
-            { header: lang.excelColTitle, key: 'title', width: 30 },
-            { header: lang.excelColContent, key: 'content', width: 40 },
+            { header: lang.excelColTitle, key: 'title', width: 25 },
+            { header: lang.excelColContent, key: 'content', width: 35 },
+            { header: lang.excelColSubTasks, key: 'subtasks', width: 45 }, // Tăng chiều rộng cột này
             { header: lang.excelColTime, key: 'time', width: 12 },
             { header: lang.excelColTag, key: 'tag', width: 15 },
-            { header: lang.excelColStatus, key: 'status', width: 18 },
-            { header: lang.excelColExpected, key: 'expected', width: 15 },
-            { header: lang.excelColActual, key: 'actual', width: 15 },
+            { header: lang.excelColStatus, key: 'status', width: 15 },
+            { header: lang.excelColExpected, key: 'expected', width: 12 },
+            { header: lang.excelColActual, key: 'actual', width: 12 },
             { header: lang.excelColPerformance, key: 'performance', width: 15 }
         ];
 
@@ -2287,7 +2967,6 @@ document.addEventListener("DOMContentLoaded", function () {
             const status = note.completed ? lang.completedStatus : lang.incompleteStatus;
             const dayName = getDayName(note.dayOfWeek || 0);
 
-            // Xử lý dữ liệu mới
             const expected = note.expectedDuration ? note.expectedDuration : '';
             const actual = note.actualDuration ? note.actualDuration : '';
             let performance = '';
@@ -2299,6 +2978,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 day: dayName,
                 title: note.title,
                 content: note.content,
+                subtasks: formatSubTasks(note.subTasks),
                 time: note.time,
                 tag: tagName,
                 status: status,
@@ -2309,51 +2989,51 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const rowIndex = index + 2;
             const rowObj = wsAll.getRow(rowIndex);
-            rowObj.height = 25;
+
+            // Tự động tăng chiều cao dòng
+            const subTaskLines = note.subTasks ? note.subTasks.length + 1 : 1;
+            rowObj.height = Math.max(25, subTaskLines * 15);
+
             const bgColor = rowIndex % 2 === 0 ? 'FFF8F9FA' : 'FFFFFFFF';
             const dayOfWeek = note.dayOfWeek || 0;
 
-            // Style từng cell
             rowObj.eachCell({ includeEmpty: false }, (cell, colNumber) => {
                 cell.font = { name: 'Calibri', size: 11 };
                 cell.border = { top: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } } };
-                cell.alignment = { vertical: 'middle', horizontal: 'left' };
+                // Wrap text để hiển thị xuống dòng
+                cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
                 cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
 
-                // Cột 1: Ngày (Link & Màu nền)
-                if (colNumber === 1) {
+                if (colNumber === 1) { // Ngày
                     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: dayBgColors[dayOfWeek] } };
                     cell.font = { bold: true, underline: 'single', color: { argb: 'FF1F2937' } };
                     cell.alignment = { horizontal: 'center', vertical: 'middle' };
                     const targetSheetName = getDayName(dayOfWeek);
                     cell.value = { text: dayName, hyperlink: `#'${targetSheetName}'!A1`, tooltip: `Go to ${targetSheetName}` };
                 }
-                // Cột 4, 7, 8: Các cột số liệu canh giữa
-                else if ([4, 7, 8].includes(colNumber)) {
-                    cell.alignment = { horizontal: 'center', vertical: 'middle' };
-                }
-                // Cột 6: Trạng thái (Màu chữ)
-                else if (colNumber === 6) {
+                else if (colNumber === 7) { // Status
                     cell.font = { bold: true, color: { argb: note.completed ? 'FF059669' : 'FFDC2626' } };
                     cell.alignment = { horizontal: 'center', vertical: 'middle' };
                 }
-                // Cột 9: Hiệu suất (Tô màu nền)
-                else if (colNumber === 9 && performance) {
+                else if (colNumber === 10 && performance) { // Performance
                     cell.fill = {
                         type: 'pattern',
                         pattern: 'solid',
-                        fgColor: { argb: note.isOnTime ? 'FFD1FAE5' : 'FFFEE2E2' } // Xanh nhẹ hoặc Đỏ nhẹ
+                        fgColor: { argb: note.isOnTime ? 'FFD1FAE5' : 'FFFEE2E2' }
                     };
                     cell.font = {
                         bold: true,
-                        color: { argb: note.isOnTime ? 'FF047857' : 'FFB91C1C' } // Chữ đậm màu
+                        color: { argb: note.isOnTime ? 'FF047857' : 'FFB91C1C' }
                     };
+                    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                }
+                else if ([5, 8, 9].includes(colNumber)) { // Time, Actual, Expected
                     cell.alignment = { horizontal: 'center', vertical: 'middle' };
                 }
             });
         });
 
-        wsAll.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 9 } };
+        wsAll.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 10 } };
 
         // ==========================================
         // 2. SHEET CHI TIẾT TỪNG NGÀY
@@ -2366,19 +3046,18 @@ document.addEventListener("DOMContentLoaded", function () {
                 const ws = workbook.addWorksheet(dayName, { views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }] });
                 ws.properties.tabColor = { argb: `FF${dayColors[i]}` };
 
-                // Cột cho sheet ngày (Bỏ cột 'Ngày', giữ lại các cột khác)
                 ws.columns = [
                     { header: lang.excelColTitle, key: 'title', width: 30 },
-                    { header: lang.excelColContent, key: 'content', width: 40 },
+                    { header: lang.excelColContent, key: 'content', width: 35 },
+                    { header: lang.excelColSubTasks, key: 'subtasks', width: 45 }, // Tăng width
                     { header: lang.excelColTime, key: 'time', width: 12 },
                     { header: lang.excelColTag, key: 'tag', width: 15 },
-                    { header: lang.excelColStatus, key: 'status', width: 18 },
-                    { header: lang.excelColExpected, key: 'expected', width: 15 },
-                    { header: lang.excelColActual, key: 'actual', width: 15 },
+                    { header: lang.excelColStatus, key: 'status', width: 15 },
+                    { header: lang.excelColExpected, key: 'expected', width: 12 },
+                    { header: lang.excelColActual, key: 'actual', width: 12 },
                     { header: lang.excelColPerformance, key: 'performance', width: 15 }
                 ];
 
-                // Header Style
                 ws.getRow(1).height = 30;
                 ws.getRow(1).eachCell((cell) => {
                     cell.font = { name: 'Calibri', bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
@@ -2386,7 +3065,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     cell.alignment = { horizontal: 'center', vertical: 'middle' };
                 });
 
-                // Data
                 dayNotes.forEach((note, index) => {
                     const noteTag = tags.find(t => t.id === note.tag);
                     const tagName = noteTag ? getTagName(noteTag) : lang.undefinedTag;
@@ -2402,6 +3080,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     const row = ws.addRow({
                         title: note.title,
                         content: note.content,
+                        subtasks: formatSubTasks(note.subTasks),
                         time: note.time,
                         tag: tagName,
                         status: status,
@@ -2412,26 +3091,22 @@ document.addEventListener("DOMContentLoaded", function () {
 
                     const rowIndex = index + 2;
                     const rowObj = ws.getRow(rowIndex);
-                    rowObj.height = 25;
+                    const subTaskLines = note.subTasks ? note.subTasks.length + 1 : 1;
+                    rowObj.height = Math.max(25, subTaskLines * 15);
+
                     const bgColor = rowIndex % 2 === 0 ? dayBgColors[i] : 'FFFFFFFF';
 
                     rowObj.eachCell({ includeEmpty: false }, (cell, colNumber) => {
                         cell.font = { name: 'Calibri', size: 11 };
                         cell.border = { top: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } } };
-                        cell.alignment = { vertical: 'middle', horizontal: 'left' };
+                        cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
                         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
 
-                        // Cột 3, 6, 7: Số liệu canh giữa
-                        if ([3, 6, 7].includes(colNumber)) {
-                            cell.alignment = { horizontal: 'center', vertical: 'middle' };
-                        }
-                        // Cột 5: Trạng thái
-                        else if (colNumber === 5) {
+                        if (colNumber === 6) { // Status
                             cell.font = { bold: true, color: { argb: note.completed ? 'FF059669' : 'FFDC2626' } };
                             cell.alignment = { horizontal: 'center', vertical: 'middle' };
                         }
-                        // Cột 8: Hiệu suất
-                        else if (colNumber === 8 && performance) {
+                        else if (colNumber === 9 && performance) { // Performance
                             cell.fill = {
                                 type: 'pattern',
                                 pattern: 'solid',
@@ -2443,10 +3118,13 @@ document.addEventListener("DOMContentLoaded", function () {
                             };
                             cell.alignment = { horizontal: 'center', vertical: 'middle' };
                         }
+                        else if ([4, 7, 8].includes(colNumber)) { // Numbers
+                            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                        }
                     });
                 });
 
-                // Link quay về trang chủ tại A1
+                // Back link
                 const backLinkCell = ws.getCell('A1');
                 const originalValue = backLinkCell.value;
                 backLinkCell.value = {
@@ -2455,7 +3133,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     tooltip: `Back to ${lang.excelSheetAll}`
                 };
 
-                ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 8 } };
+                ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 9 } };
             }
         }
 
@@ -2468,11 +3146,22 @@ document.addEventListener("DOMContentLoaded", function () {
         a.click();
         window.URL.revokeObjectURL(url);
 
-        showToast('toastExcelExported', 'success');
+        showToast(lang.toastExcelExported, 'success');
     }
+
+
+    let lastCheckedDate = new Date().getDate();
 
     function updateDateTime() {
         const now = new Date();
+        const currentDate = now.getDate();
+
+        // Nếu sang ngày mới
+        if (currentDate !== lastCheckedDate) {
+            notifiedNotes.clear(); // Reset danh sách đã thông báo
+            lastCheckedDate = currentDate;
+            console.log("New day detected, resetting notifications.");
+        }
 
         // Format date theo ngôn ngữ
         const dateOptions = {
@@ -2549,57 +3238,92 @@ document.addEventListener("DOMContentLoaded", function () {
         checkAndScheduleNotifications(filteredNotes);
     }
 
-    // Notification Logic
-    function checkAndScheduleNotifications(notes) {
-        // Xóa các interval cũ để tránh trùng lặp
+    function checkAndScheduleNotifications(notesList) {
+        // Xóa interval cũ để tránh chạy chồng chéo
         if (notificationInterval) {
             clearInterval(notificationInterval);
         }
 
-        const notificationTimeBefore = parseInt(localStorage.getItem('notificationTimeBefore') || '5'); // Lấy thời gian thông báo trước từ cài đặt (mặc định 5 phút)
-        if (notificationTimeBefore === 0) {
-
-            notifiedNotes.clear(); // Xóa các ghi chú đã thông báo nếu tắt thông báo
-            return; // Nếu cài đặt là 0 phút, không cần kiểm tra thông báo
-        }
+        // Lấy cài đặt thời gian thông báo
+        // Đặt trong interval để nếu user đổi setting thì cập nhật ngay mà không cần reload
 
         notificationInterval = setInterval(() => {
+            const notificationTimeBefore = parseInt(localStorage.getItem('notificationTimeBefore') || '5');
+
+            // Nếu tắt thông báo (0 phút) thì dừng kiểm tra
+            if (notificationTimeBefore === 0) return;
+
             const now = new Date();
-            notes.forEach(note => {
-                // Kiểm tra nếu ghi chú có noteTime, chưa hoàn thành và chưa được thông báo
-                if (note.time && !note.completed && !notifiedNotes.has(note.id)) {
-                    // Giả sử note.time là định dạng "HH:MM".
-                    // Nếu bạn lưu thêm thông tin ngày trong note.time (ví dụ: "YYYY-MM-DDTHH:MM"),
-                    // bạn cần điều chỉnh cách parse string này thành Date object.
-                    // Ví dụ: note.time có thể là "14:50" (chỉ giờ)
-                    // Hoặc bạn có thể lưu riêng noteDate và noteTime trong Firebase
+            const currentDay = now.getDay(); // 0 (CN) - 6 (T7)
+
+            notesList.forEach(note => {
+                // 1. Bỏ qua nếu đã hoàn thành hoặc đã thông báo
+                if (note.completed || notifiedNotes.has(note.id)) return;
+
+                // 2. QUAN TRỌNG: Kiểm tra có đúng ngày hôm nay không
+                // Lưu ý: note.dayOfWeek có thể là string hoặc number, nên parse ra số để so sánh
+                if (parseInt(note.dayOfWeek) !== currentDay) return;
+
+                // 3. Tính toán thời gian
+                if (note.time) {
                     const [noteHour, noteMinute] = note.time.split(':').map(Number);
 
-                    // Lấy ngày hiện tại
-                    const today = new Date();
-                    const noteDateTime = new Date(
-                        today.getFullYear(),
-                        today.getMonth(),
-                        today.getDate(),
-                        noteHour,
-                        noteMinute,
-                        0,
-                        0
-                    );
+                    // Tạo đối tượng Date cho thời gian của ghi chú (trong ngày hôm nay)
+                    const noteTimeDate = new Date();
+                    noteTimeDate.setHours(noteHour, noteMinute, 0, 0);
 
-                    const timeDifference = noteDateTime.getTime() - now.getTime(); // Thời gian còn lại đến ghi chú (ms)
-                    const minutesDifference = timeDifference / (1000 * 60); // Thời gian còn lại (phút)
+                    // Tính khoảng cách thời gian (ms)
+                    const diffMs = noteTimeDate - now;
+                    const diffMinutes = diffMs / (1000 * 60);
 
-                    // Kiểm tra nếu thời gian còn lại nằm trong khoảng thông báo và chưa quá thời gian ghi chú
-                    // Đảm bảo thông báo chỉ xuất hiện 1 lần khi đạt ngưỡng notificationTimeBefore
-                    if (minutesDifference <= notificationTimeBefore && minutesDifference > 0) {
-                        const message = translations[currentLanguage].notificationReminder.replace('{title}', note.title);
-                        showToast(message, 'info', 10000); // Hiển thị thông báo trong 10 giây
-                        notifiedNotes.add(note.id); // Đánh dấu ghi chú này đã được thông báo
+                    // 4. Logic kiểm tra:
+                    // - diffMinutes <= notificationTimeBefore: Đã đến lúc thông báo
+                    // - diffMinutes > 0: Chưa quá giờ (chưa trễ)
+                    if (diffMinutes <= notificationTimeBefore && diffMinutes > 0) {
+                        const lang = translations[currentLanguage];
+                        const message = lang.notificationReminder.replace('{title}', note.title);
+
+                        // Hiển thị Toast (màu vàng cảnh báo, hiện lâu hơn chút - 10s)
+                        showToast(message, 'warning', 10000);
+
+                        // Phát âm thanh (Tùy chọn - xem phần 2 bên dưới)
+                        playNotificationSound();
+
+                        // Đánh dấu đã thông báo để không spam
+                        notifiedNotes.add(note.id);
                     }
                 }
             });
-        }, 30000); // Kiểm tra mỗi 30 giây
+        }, 10000); // Kiểm tra mỗi 10 giây (nhanh hơn 30s để chính xác hơn)
+    }
+
+    function playNotificationSound() {
+        // Tạo âm thanh "ding" nhẹ nhàng bằng AudioContext (không cần file mp3)
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+
+            const ctx = new AudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.type = 'sine';
+            osc.frequency.value = 800; // Tần số
+            gain.gain.value = 0.3; // Âm lượng
+
+            osc.start();
+
+            // Tắt sau 0.5 giây
+            setTimeout(() => {
+                osc.stop();
+                ctx.close();
+            }, 2000);
+        } catch (e) {
+            console.error("Audio play failed", e);
+        }
     }
 
     function updateEmptyState(notesToCheck = notes) {
@@ -2655,48 +3379,120 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     async function completeAllNotes() {
-        const hasUncompleted = notes.some(note => !note.completed);
-        if (!hasUncompleted) {
-            showToast('toastNoNotesToComplete', 'info');
+        const lang = translations[currentLanguage]; // Lấy ngôn ngữ hiện tại
+
+        // 1. Xác định ngày cần xử lý
+        const selectedDayFilter = document.getElementById("dayOfWeekSelect").value;
+        let targetDay;
+
+        if (selectedDayFilter === "all") {
+            targetDay = new Date().getDay();
+        } else {
+            targetDay = parseInt(selectedDayFilter);
+        }
+
+        // 2. Lọc các ghi chú thuộc ngày đó và CHƯA hoàn thành
+        const notesToComplete = notes.filter(note =>
+            note.dayOfWeek === targetDay && !note.completed
+        );
+
+        if (notesToComplete.length === 0) {
+            showToast(lang.noNotesToCompleteOnDay, 'info');
             return;
         }
 
+        // 3. Batch update
         const batch = db.batch();
-        notes.forEach(note => {
-            if (!note.completed) {
-                const noteRef = db.collection('notes').doc(note.id); // Sửa dòng này
-                batch.update(noteRef, { completed: true });
+        const now = new Date();
+        const endTime = now.toISOString();
+
+        notesToComplete.forEach(note => {
+            const noteRef = db.collection('notes').doc(note.id);
+
+            let actualDuration = null;
+            let isOnTime = null;
+
+            if (note.startTime) {
+                const start = new Date(note.startTime);
+                actualDuration = Math.round((now - start) / 60000);
+            } else {
+                const [hours, minutes] = note.time.split(':');
+                const start = new Date();
+                start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                let diff = Math.round((now - start) / 60000);
+                actualDuration = diff > 0 ? diff : 0;
             }
+
+            if (note.expectedDuration) {
+                isOnTime = actualDuration <= note.expectedDuration;
+            }
+
+            batch.update(noteRef, {
+                completed: true,
+                endTime: endTime,
+                actualDuration: actualDuration,
+                isOnTime: isOnTime
+            });
         });
 
         try {
             await batch.commit();
-            showToast('toastAllNotesCompleted', 'success');
+            const dayName = getDayName(targetDay);
+            // Thay thế {day} bằng tên ngày thực tế
+            showToast(lang.completeAllSuccess.replace('{day}', dayName), 'success');
         } catch (error) {
             console.error("Error completing all notes: ", error);
-            showToast('toastErrorCompletingAllNotes', 'error');
+            showToast(lang.completeAllError, 'error');
         }
     }
 
     async function resetAllNotes() {
-        const hasCompleted = notes.some(note => note.completed);
-        if (!hasCompleted) {
-            showToast('toastNoNotesToReset', 'info');
+        const lang = translations[currentLanguage]; // Lấy ngôn ngữ hiện tại
+
+        // 1. Xác định ngày cần xử lý
+        const selectedDayFilter = document.getElementById("dayOfWeekSelect").value;
+        let targetDay;
+
+        if (selectedDayFilter === "all") {
+            targetDay = new Date().getDay();
+        } else {
+            targetDay = parseInt(selectedDayFilter);
+        }
+
+        const dayName = getDayName(targetDay);
+
+        // 2. Lọc các ghi chú thuộc ngày đó và ĐÃ hoàn thành
+        const notesToReset = notes.filter(note =>
+            note.dayOfWeek === targetDay && note.completed
+        );
+
+        if (notesToReset.length === 0) {
+            showToast(lang.noNotesToResetOnDay, 'info');
             return;
         }
+
+        // 3. Batch update
         const batch = db.batch();
-        notes.forEach(note => {
-            if (note.completed) {
-                const noteRef = db.collection('notes').doc(note.id);
-                batch.update(noteRef, { completed: false });
-            }
+
+        notesToReset.forEach(note => {
+            const noteRef = db.collection('notes').doc(note.id);
+
+            batch.update(noteRef, {
+                completed: false,
+                endTime: null,
+                actualDuration: null,
+                isOnTime: null,
+                startTime: null
+            });
         });
+
         try {
             await batch.commit();
-            showToast('toastAllNotesReset', 'success');
+            // Thay thế {day} bằng tên ngày
+            showToast(lang.resetAllSuccess.replace('{day}', dayName), 'success');
         } catch (error) {
             console.error("Error resetting all notes: ", error);
-            showToast('toastErrorResettingAllNotes', 'error');
+            showToast(lang.resetAllError, 'error');
         }
     }
 
@@ -2759,7 +3555,6 @@ document.addEventListener("DOMContentLoaded", function () {
         dayOfWeekSelect.value = today.toString();
     }
 
-
     loadSettings();
 
     function saveSettings() {
@@ -2774,33 +3569,23 @@ document.addEventListener("DOMContentLoaded", function () {
         localStorage.setItem('language', selectedLanguage);
         localStorage.setItem('notificationTimeBefore', notificationTimeBeforeSelect.value);
 
-        // Lưu tên ứng dụng
         if (selectedAppName) {
             localStorage.setItem('appName', selectedAppName);
         } else {
             localStorage.removeItem('appName');
         }
 
-        // Kiểm tra nếu ngôn ngữ thay đổi
         const languageChanged = currentLanguage !== selectedLanguage;
-
-        // Cập nhật biến ngôn ngữ toàn cục
         currentLanguage = selectedLanguage;
-
-        // Áp dụng bản dịch
         applyTranslations();
-
-        // MỚI: Cập nhật datetime khi đổi ngôn ngữ
         updateDateTime();
 
-        // Nếu ngôn ngữ thay đổi, reload lại các filter options và notes
         if (languageChanged) {
             renderFilterOptions();
             renderTagOptions();
             renderCurrentTagsList();
-            renderNotes();
+            filterNotes();
         }
-
         showToast('toastSettingsSaved', 'success');
         closeSettingsModal();
 

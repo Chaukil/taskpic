@@ -239,21 +239,48 @@ document.getElementById('forgotPasswordLink').addEventListener('click', async (e
 // HELPER FUNCTIONS
 // ==========================================
 function showLoading() {
-    loadingSpinner.classList.add('show');
-    
-    // Disable all buttons
-    document.querySelectorAll('button[type="submit"], .social-btn, .google-login-btn').forEach(btn => {
-        btn.disabled = true;
-    });
+    // Tìm nút submit trong form đang hiển thị (active)
+    const activeSubmitBtn = document.querySelector('.auth-form.active button[type="submit"]');
+    const googleBtn = document.getElementById('googleLogin');
+
+    // Hiệu ứng cho nút Submit (Đăng nhập/Đăng ký)
+    if (activeSubmitBtn) {
+        // Lưu text gốc vào data attribute để khôi phục sau
+        activeSubmitBtn.dataset.originalText = activeSubmitBtn.innerHTML;
+        activeSubmitBtn.disabled = true;
+        activeSubmitBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Đang xử lý...';
+        activeSubmitBtn.style.opacity = '0.7';
+        activeSubmitBtn.style.cursor = 'not-allowed';
+    }
+
+    // Disable nút Google để tránh click đúp
+    if (googleBtn) {
+        googleBtn.disabled = true;
+        googleBtn.style.opacity = '0.6';
+    }
 }
 
 function hideLoading() {
-    loadingSpinner.classList.remove('show');
-    
-    // Enable all buttons
-    document.querySelectorAll('button[type="submit"], .social-btn, .google-login-btn').forEach(btn => {
-        btn.disabled = false;
-    });
+    // Tìm nút submit trong form đang hiển thị
+    const activeSubmitBtn = document.querySelector('.auth-form.active button[type="submit"]');
+    const googleBtn = document.getElementById('googleLogin');
+
+    // Khôi phục nút Submit
+    if (activeSubmitBtn) {
+        activeSubmitBtn.disabled = false;
+        // Lấy lại text gốc (Đăng nhập hoặc Đăng ký)
+        if (activeSubmitBtn.dataset.originalText) {
+            activeSubmitBtn.innerHTML = activeSubmitBtn.dataset.originalText;
+        }
+        activeSubmitBtn.style.opacity = '1';
+        activeSubmitBtn.style.cursor = 'pointer';
+    }
+
+    // Khôi phục nút Google
+    if (googleBtn) {
+        googleBtn.disabled = false;
+        googleBtn.style.opacity = '1';
+    }
 }
 
 function showError(message, type = 'error') {

@@ -4,55 +4,54 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ghi Chú Tinh Tế</title>
+  <title>Quản lý công việc</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link rel="stylesheet" href="./style.css" />
 </head>
 
 <body>
   <div class="container">
-    <header class="header">
-      <button id="settingsBtn" class="settings-btn">
-        <i class="fas fa-cog"></i>
-      </button>
-      <h1>Châu Chí Kil</h1>
-      <p>Lưu trữ suy nghĩ và ý tưởng của bạn một cách phong cách</p>
+    <div class="header-container">
+      <header class="header">
+        <button id="settingsBtn" class="settings-btn">
+          <i class="fas fa-cog"></i>
+        </button>
+        <h1>Châu Chí Kil</h1>
 
-      <!-- MỚI: Đồng hồ ngày giờ -->
-      <div class="datetime-display" id="datetimeDisplay">
-        <div class="date-part" id="datePart">
-          <i class="fas fa-calendar-alt"></i>
-          <span id="dateText"></span>
+        <!-- MỚI: Đồng hồ ngày giờ -->
+        <div class="datetime-display" id="datetimeDisplay">
+          <div class="date-part" id="datePart">
+            <i class="fas fa-calendar-alt"></i>
+            <span id="dateText"></span>
+          </div>
+          <div class="time-part" id="timePart">
+            <i class="fas fa-clock"></i>
+            <span id="timeText"></span>
+          </div>
         </div>
-        <div class="time-part" id="timePart">
-          <i class="fas fa-clock"></i>
-          <span id="timeText"></span>
-        </div>
-      </div>
+      </header>
 
       <!-- Trong header, sau datetime-display -->
-<div class="user-menu" style="position: absolute; top: 20px; left: 80px;">
-    <div class="user-avatar" id="userAvatar" style="cursor: pointer;">
-        <i class="fas fa-user-circle" style="font-size: 2rem; color: #4f46e5;"></i>
-    </div>
-    
-    <!-- Dropdown menu -->
-    <div class="user-dropdown" id="userDropdown" style="display: none; position: absolute; top: 50px; left: 0; background: white; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 10px; min-width: 200px;">
-        <div style="padding: 10px; border-bottom: 1px solid #eee; margin-bottom: 10px;">
+      <div class="user-menu" id="userMenu">
+        <div class="user-avatar" id="userAvatar">
+            <i class="fas fa-user-circle" style="font-size: 2rem; color: #4f46e5;"></i>
+        </div>
+        <div class="user-dropdown" id="userDropdown" style="display: none;">
+          <div style="padding: 10px; border-bottom: 1px solid #eee; margin-bottom: 10px;">
             <p style="font-weight: 600; margin-bottom: 3px;" id="userName">Loading...</p>
             <p style="font-size: 0.85rem; color: #666;" id="userEmail">Loading...</p>
-        </div>
-        <button id="profileBtn" style="width: 100%; padding: 10px; border: none; background: none; text-align: left; cursor: pointer; border-radius: 5px;">
+          </div>
+          <button id="profileBtn"
+            style="width: 100%; padding: 10px; border: none; background: none; text-align: left; cursor: pointer; border-radius: 5px;">
             <i class="fas fa-user"></i> Hồ sơ
-        </button>
-        <button id="logoutBtn" style="width: 100%; padding: 10px; border: none; background: none; text-align: left; cursor: pointer; color: #ef4444; border-radius: 5px;">
+          </button>
+          <button id="logoutBtn"
+            style="width: 100%; padding: 10px; border: none; background: none; text-align: left; cursor: pointer; color: #ef4444; border-radius: 5px;">
             <i class="fas fa-sign-out-alt"></i> Đăng xuất
-        </button>
+          </button>
+        </div>
+      </div>
     </div>
-</div>
-
-    </header>
-
 
     <div class="controls">
       <div class="controls-container">
@@ -148,22 +147,38 @@
           </div>
           <div class="form-row">
             <div class="form-group">
-                <label for="noteTime" class="form-label">Thời gian</label>
-                <input type="time" id="noteTime" class="form-input" required />
+              <label for="noteTime" class="form-label">Thời gian</label>
+              <input type="time" id="noteTime" class="form-input" required />
             </div>
             <div class="form-group">
-                <label for="expectedDuration" id="expectedDurationLabel" class="form-label">Thời gian dự kiến (phút)</label>
-                <input type="number" id="expectedDuration" class="form-input" min="5" step="5" placeholder="30" />
-                <p class="help-text" id="helpExpectedDuration">Ước tính (5, 10, 15... phút)</p>
+              <label for="expectedDuration" id="expectedDurationLabel" class="form-label">Thời gian dự kiến
+                (phút)</label>
+              <input type="number" id="expectedDuration" class="form-input" min="5" step="5" placeholder="30" />
+              <p class="help-text" id="helpExpectedDuration">Ước tính (5, 10, 15... phút)</p>
             </div>
-        </div>
+
+          </div>
           <div class="form-group">
-            <label class="form-label">Thẻ</label>
-            <div id="noteTagsContainer" class="tags-container">
+            <label class="form-label">
+              <span id="subTasksLabel">Công việc cần thực hiện</span>
+              <button type="button" id="addSubTaskBtn" class="inline-btn">
+                <i class="fas fa-plus"></i> Thêm công việc
+              </button>
+            </label>
+            <div id="subTasksContainer" class="sub-tasks-container">
+              <!-- Sub-tasks will be added here dynamically -->
             </div>
-            <button type="button" id="manageTagsBtn" class="action-btn small-btn">
-              <i class="fas fa-tags"></i> Quản lý Thẻ
-            </button>
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>Thẻ</span>
+              <button type="button" id="manageTagsBtn" class="inline-btn">
+                <i class="fas fa-cog"></i> Quản lý
+              </button>
+            </label>
+            <div id="noteTagsContainer" class="tags-container">
+              <!-- Tags sẽ được render ở đây -->
+            </div>
           </div>
           <button type="submit" class="submit-btn" id="submitNoteBtn">
             Lưu ghi chú
@@ -199,6 +214,17 @@
           <div class="form-group">
             <label class="form-label">Nội dung:</label>
             <p id="viewNoteContent" class="view-content"></p>
+          </div>
+
+          <div class="form-group" id="viewSubTasksGroup" style="display: none;">
+            <label class="form-label">Công việc cần thực hiện</label>
+            <div class="progress-bar-container">
+              <div class="progress-bar">
+                <div id="viewProgressFill" class="progress-fill" style="width: 0%"></div>
+              </div>
+              <span id="viewProgressText" class="progress-text">0%</span>
+            </div>
+            <div id="viewSubTasksList" class="view-sub-tasks-list"></div>
           </div>
 
           <div id="viewNoteActions" class="form-group"></div>
@@ -354,13 +380,13 @@
           </button>
         </div>
         <div class="modal-body">
-          <p style="color: #6b7280; margin-bottom: 20px;">
+          <p style="color: #6b7280; margin-bottom: 20px;" id="qrConfirmMessage">
             Ghi chú được quét từ mã QR. Vui lòng xem lại thông tin:
           </p>
 
           <form id="addFromQRForm">
             <div class="form-group">
-              <label for="qrNoteTitle" class="form-label">Tiêu đề</label>
+              <label for="qrNoteTitleInput" class="form-label">Tiêu đề</label>
               <input type="text" id="qrNoteTitleInput" class="form-input" required />
             </div>
 
@@ -382,14 +408,28 @@
               <textarea id="qrNoteContentInput" class="form-input form-textarea" required></textarea>
             </div>
 
-            <div class="form-group">
-              <label for="qrNoteTimeInput" class="form-label">Thời gian</label>
-              <input type="time" id="qrNoteTimeInput" class="form-input" required />
+            <div class="form-row">
+              <div class="form-group">
+                <label for="qrNoteTimeInput" class="form-label">Thời gian</label>
+                <input type="time" id="qrNoteTimeInput" class="form-input" required />
+              </div>
+              <div class="form-group">
+                <label for="qrExpectedDuration" class="form-label">Thời gian dự kiến (phút)</label>
+                <input type="number" id="qrExpectedDuration" class="form-input" min="5" step="5" placeholder="30" />
+              </div>
             </div>
 
+            <!-- MỚI: Thêm phần Sub-tasks -->
             <div class="form-group">
-              <label for="qrExpectedDuration" class="form-label">Thời gian dự kiến (phút)</label>
-              <input type="number" id="qrExpectedDuration" class="form-input" min="5" step="5" placeholder="30" />
+              <label class="form-label">
+                <span id="qrSubTasksLabel">Công việc cần thực hiện</span>
+                <button type="button" id="addQRSubTaskBtn" class="inline-btn">
+                  <i class="fas fa-plus"></i> Thêm công việc
+                </button>
+              </label>
+              <div id="qrSubTasksContainer" class="sub-tasks-container">
+                <!-- Sub-tasks sẽ được load từ QR data -->
+              </div>
             </div>
 
             <div class="form-group">
@@ -406,6 +446,7 @@
         </div>
       </div>
     </div>
+
 
     <!-- Time Reports Modal -->
     <div id="timeReportsModal" class="modal-overlay">
@@ -513,8 +554,6 @@
       </div>
     </div>
 
-        <!-- Profile Modal -->
-        <!-- Profile Modal -->
     <div id="profileModal" class="modal-overlay">
       <div class="modal">
         <div class="modal-header">
@@ -526,7 +565,8 @@
         </div>
         <div class="modal-body">
           <div style="text-align: center; margin-bottom: 20px;">
-            <div id="profileAvatarDisplay" style="width: 80px; height: 80px; border-radius: 50%; background-color: #e0e7ff; display: inline-flex; align-items: center; justify-content: center; font-size: 2.5rem; color: #4f46e5; overflow: hidden;">
+            <div id="profileAvatarDisplay"
+              style="width: 80px; height: 80px; border-radius: 50%; background-color: #e0e7ff; display: inline-flex; align-items: center; justify-content: center; font-size: 2.5rem; color: #4f46e5; overflow: hidden;">
               <i class="fas fa-user"></i>
             </div>
           </div>
@@ -552,11 +592,13 @@
           <div style="border-top: 1px solid #eee; margin: 20px 0; padding-top: 20px;">
             <!-- Thêm id="labelSecurity" -->
             <h4 style="margin-bottom: 15px; color: #333;" id="labelSecurity">Bảo mật</h4>
-            <button type="button" id="sendPasswordResetBtn" class="action-btn" style="width: 100%; background-color: #f59e0b; color: white;">
+            <button type="button" id="sendPasswordResetBtn" class="action-btn"
+              style="width: 100%; background-color: #f59e0b; color: white;">
               <i class="fas fa-key"></i> <span id="textSendResetBtn">Gửi email đổi mật khẩu</span>
             </button>
             <!-- Thêm id="helpTextReset" -->
-            <p class="help-text" style="margin-top: 8px;" id="helpTextReset">Chúng tôi sẽ gửi liên kết đổi mật khẩu đến email của bạn.</p>
+            <p class="help-text" style="margin-top: 8px;" id="helpTextReset">Chúng tôi sẽ gửi liên kết đổi mật khẩu đến
+              email của bạn.</p>
           </div>
 
           <button id="saveProfileBtn" class="submit-btn small-btn">Lưu thay đổi</button>

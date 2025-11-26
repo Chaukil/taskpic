@@ -18,7 +18,7 @@ body {
     background-color: var(--body-bg-color);
     color: #333;
     line-height: 1.6;
-    padding: 20px;
+    padding: 10px;
 }
 
 .container {
@@ -29,8 +29,9 @@ body {
 
 .header {
     text-align: center;
-    margin-bottom: 40px;
-    position: relative;
+    margin-bottom: 0;
+    overflow: visible !important;
+    z-index: 1000;
 }
 
 .header h1 {
@@ -45,10 +46,98 @@ body {
     color: #666;
 }
 
+.header-container {
+    position: relative;
+    margin-bottom: 40px;
+}
+
+.user-dropdown {
+    position: absolute;
+    top: 60px !important;
+    /* Điều chỉnh khoảng cách từ top */
+    left: 0;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    padding: 10px;
+    min-width: 220px;
+
+    /* QUAN TRỌNG: Z-index cao nhất để đè lên mọi thứ */
+    z-index: 99999 !important;
+
+    /* Animation xuất hiện */
+    animation: fadeInDown 0.2s ease-out;
+    border: 1px solid #f0f0f0;
+}
+
+/* Mũi tên nhỏ chỉ lên trên (trang trí) */
+.user-dropdown::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 20px;
+    width: 12px;
+    height: 12px;
+    background: white;
+    transform: rotate(45deg);
+    border-top: 1px solid #f0f0f0;
+    border-left: 1px solid #f0f0f0;
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Hover effect cho các item trong dropdown */
+.user-dropdown button:hover {
+    background-color: #f3f4f6 !important;
+    color: #4f46e5 !important;
+}
+
+/* ========================================
+   USER AVATAR STATUS INDICATOR
+   ======================================== */
+
+.user-avatar {
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+/* Chấm trạng thái */
+.user-avatar::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 12px;
+    height: 12px;
+    background-color: #10b981;
+    /* Màu xanh online */
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 0 5px rgba(16, 185, 129, 0.7);
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Khi hover, chấm trạng thái phóng to */
+.user-avatar:hover::after {
+    transform: scale(1.3);
+}
+
+
 .datetime-display {
     position: absolute;
-    top: 20px;
-    right: 20px;
+    top: 3px;
+    right: 10px;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -91,7 +180,7 @@ body {
     background-color: white;
     border-radius: 12px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-    padding: 20px;
+    padding: 10px;
     margin-bottom: 30px;
 }
 
@@ -102,12 +191,8 @@ body {
 }
 
 .time-reports-btn {
-    background-color: #0891b2; /* Cyan */
-    color: white;
-}
-
-.time-reports-btn:hover {
-    background-color: #0e7490;
+    background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+    box-shadow: 0 4px 10px rgba(8, 145, 178, 0.3);
 }
 
 /* Time Reports Summary */
@@ -264,27 +349,64 @@ body {
     color: #b91c1c;
 }
 
-/* QR Scanner/Generator Buttons */
+/* Sub-task progress trong Time Reports */
+.sub-task-progress {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.sub-task-progress.complete {
+    background: #d1fae5;
+    color: #047857;
+}
+
+.sub-task-progress.high {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.sub-task-progress.medium {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.sub-task-progress.low {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+/* Time report item - thêm space cho sub-task progress */
+.time-report-item .note-info {
+    flex: 1;
+}
+
+.time-report-item .note-info h5 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 5px;
+    color: #1f2937;
+}
+
+.time-report-item .note-info p {
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin-bottom: 3px;
+}
+
+.time-report-item .note-info p:last-child {
+    margin-bottom: 0;
+}
+
 .scan-qr-btn {
-    background-color: #7c3aed; /* Purple */
-    color: white;
-}
-
-.scan-qr-btn:hover {
-    background-color: #6d28d9;
-}
-
-.qr-btn {
-    color: #7c3aed;
-    background: none;
-    border: none;
-    font-size: 1.2rem;
-    cursor: pointer;
-    transition: color 0.3s;
-}
-
-.qr-btn:hover {
-    color: #5b21b6;
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    box-shadow: 0 4px 10px rgba(139, 92, 246, 0.3);
 }
 
 /* QR Modal Specific */
@@ -440,6 +562,443 @@ body {
     background-color: #2563eb;
 }
 
+/* Sub-tasks Management */
+.sub-tasks-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+
+}
+
+.sub-task-item {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 3px solid #4f46e5;
+    transition: all 0.3s;
+    animation: slideInDown 0.3s ease-out;
+}
+
+@keyframes slideInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.sub-task-item:hover {
+    background: #e9ecef;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.sub-task-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-top: 3px;
+}
+
+.sub-task-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.sub-task-text-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.sub-task-link-input {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: #4f46e5;
+}
+
+.sub-task-link-input::placeholder {
+    color: #999;
+}
+
+.remove-sub-task-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+}
+
+.remove-sub-task-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.remove-sub-task-btn i {
+    color: #666;
+}
+
+.remove-sub-task-btn:hover i {
+    color: #ef4444;
+}
+
+.sub-task-item:only-child .remove-sub-task-btn {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.sub-task-item:only-child .remove-sub-task-btn:hover {
+    background: transparent;
+}
+
+.sub-task-item:only-child .remove-sub-task-btn:hover i {
+    color: #666;
+}
+
+.sub-task-item:focus-within {
+    border-left-color: #6366f1;
+    background: #eef2ff;
+}
+
+.sub-task-actions {
+    display: flex;
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+.sub-task-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+}
+
+.sub-task-btn:hover {
+    background: rgba(79, 70, 229, 0.1);
+}
+
+.sub-task-btn i {
+    color: #666;
+}
+
+.sub-task-btn:hover i {
+    color: #4f46e5;
+}
+
+.remove-sub-task-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.remove-sub-task-btn:hover i {
+    color: #ef4444;
+}
+
+/* Inline button style */
+.inline-btn {
+    background: linear-gradient(135deg, #338bbe 0%, #388dd3 100%);
+    /* Màu tím mặc định */
+    color: white;
+    border: none;
+    height: 30px;
+    padding: 4px 12px;
+    /* Padding nhỏ */
+    border-radius: 10px;
+    font-size: 0.75rem;
+    /* Chữ nhỏ */
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-left: auto;
+}
+
+.inline-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+    filter: brightness(1.1);
+}
+
+.inline-btn:active {
+    transform: scale(0.95);
+}
+
+
+.form-group label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+/* Progress Bar */
+.progress-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.progress-bar {
+    flex: 1;
+    height: 24px;
+    background: #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+    transition: width 0.3s ease, background 0.3s ease;
+    /* Thêm transition cho background */
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 8px;
+    color: white;
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.progress-fill[data-progress="low"] {
+    background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+}
+
+/* Màu vàng/cam: 34-66% */
+.progress-fill[data-progress="medium"] {
+    background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
+}
+
+/* Màu xanh: 67-100% */
+.progress-fill[data-progress="high"] {
+    background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+}
+
+.progress-text {
+    font-weight: 600;
+    color: #1f2937;
+    min-width: 45px;
+    text-align: right;
+}
+
+/* View Sub-tasks List */
+.view-sub-tasks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.view-sub-task-item {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border-left: 3px solid #d1d5db;
+}
+
+.view-sub-task-item.completed {
+    background: #d1fae5;
+    border-left-color: #10b981;
+}
+
+.view-sub-task-item.completed .view-sub-task-text {
+    text-decoration: line-through;
+    color: #6b7280;
+}
+
+.view-sub-task-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.view-sub-task-text {
+    flex: 1;
+    font-size: 0.9rem;
+    color: #1f2937;
+}
+
+.view-sub-task-link {
+    flex-shrink: 0;
+}
+
+.copy-link-btn {
+    background: #e0e7ff;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.85rem;
+}
+
+.copy-link-btn i {
+    color: #4f46e5;
+}
+
+.copy-link-btn:hover {
+    background: #c7d2fe;
+}
+
+.copy-link-btn:hover i {
+    color: #3730a3;
+}
+
+.note-progress {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1.5px solid rgba(255, 255, 255, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.note-progress::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg,
+            transparent,
+            rgba(255, 255, 255, 0.3),
+            transparent);
+    transition: left 0.5s;
+}
+
+.note-progress:hover::before {
+    left: 100%;
+}
+
+.note-progress:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.note-progress i {
+    font-size: 0.9rem;
+}
+
+.note-progress[data-progress="0"],
+.note-progress[data-progress="low"] {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
+}
+
+.note-progress[data-progress="low"]:hover {
+    box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+}
+
+/* 34-66%: Vàng/Cam */
+.note-progress[data-progress="medium"] {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    box-shadow: 0 2px 4px rgba(245, 158, 11, 0.2);
+}
+
+.note-progress[data-progress="medium"]:hover {
+    box-shadow: 0 4px 8px rgba(245, 158, 11, 0.3);
+}
+
+/* 67-99%: Xanh lá */
+.note-progress[data-progress="high"] {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+}
+
+.note-progress[data-progress="high"]:hover {
+    box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+}
+
+/* 100%: Xanh đậm với hiệu ứng đặc biệt */
+.note-progress[data-progress="100"],
+.note-progress[data-progress="complete"] {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    box-shadow: 0 2px 6px rgba(5, 150, 105, 0.3);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        box-shadow: 0 2px 6px rgba(5, 150, 105, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 4px 12px rgba(5, 150, 105, 0.5);
+    }
+}
+
+
+.complete-btn-header {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+}
+
+.complete-btn-header:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+    transform: translateY(-2px);
+}
+
+.complete-btn-header i {
+    margin: 0;
+}
+
+.note-card:hover .note-actions button {
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+}
+
+.note-content {
+    padding: 10px;
+}
+
+@media (max-width: 1024px) {
+    .action-buttons-row {
+        grid-template-columns: repeat(3, 1fr);
+        /* 3 cột trên tablet */
+    }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .qr-actions {
@@ -449,24 +1008,62 @@ body {
     .qr-actions button {
         max-width: 100%;
     }
+
     .datetime-display {
         position: static;
         margin: 20px auto 0;
         max-width: 250px;
     }
+
     .search-filter-row {
-        flex-direction: column; /* Trên mobile xếp dọc ô tìm kiếm và select */
+        flex-direction: column;
+        /* Trên mobile xếp dọc ô tìm kiếm và select */
     }
-    
-    .search-input, 
+
+    .search-input,
     .filter-select {
-        width: 100%; /* Full chiều rộng trên mobile */
+        width: 100%;
+        /* Full chiều rộng trên mobile */
         flex: none;
     }
 
     .action-buttons-row button {
-        flex: 1 1 calc(50% - 10px); /* Trên mobile hiển thị 2 nút 1 hàng */
+        flex: 1 1 calc(50% - 10px);
+        /* Trên mobile hiển thị 2 nút 1 hàng */
         width: auto;
+    }
+
+    .action-buttons-row {
+        grid-template-columns: repeat(2, 1fr);
+        /* 2 cột trên mobile lớn */
+    }
+
+    .add-btn,
+    .action-btn {
+        font-size: 0.85rem;
+        /* Chữ nhỏ hơn chút trên mobile */
+        height: 45px;
+    }
+
+    note-actions button {
+        width: 30px;
+        height: 30px;
+        font-size: 0.85rem;
+    }
+
+    .note-actions {
+        gap: 5px;
+    }
+
+    .note-footer {
+        gap: 6px;
+    }
+
+    .note-tag,
+    .note-progress,
+    .note-date {
+        font-size: 0.8rem;
+        padding: 5px 10px;
     }
 }
 
@@ -476,36 +1073,38 @@ body {
         width: 90%;
         padding: 12px 15px;
     }
-    
+
     #dateText {
         font-size: 0.85rem;
     }
-    
+
     #timeText {
         font-size: 1.1rem;
     }
-    
+
     .date-part i,
     .time-part i {
         font-size: 1rem;
     }
+
     .action-buttons-row button {
-        flex: 1 1 100%; /* Màn hình quá nhỏ thì 1 nút 1 hàng */
+        flex: 1 1 100%;
+        /* Màn hình quá nhỏ thì 1 nút 1 hàng */
+    }
+
+    .action-buttons-row {
+        grid-template-columns: repeat(2, 1fr);
+        /* Vẫn giữ 2 cột cho gọn */
+        gap: 10px;
     }
 
     .form-row {
         flex-direction: column;
         gap: 0;
     }
-    
+
     .form-row .form-group {
         margin-bottom: 20px;
-    }
-}
-
-@media (min-width: 768px) {
-    .controls-container {
-        flex-direction: row;
     }
 }
 
@@ -513,7 +1112,8 @@ body {
     display: flex;
     gap: 10px;
     width: 100%;
-    flex-wrap: wrap; /* Cho phép xuống dòng trên mobile */
+    flex-wrap: wrap;
+    /* Cho phép xuống dòng trên mobile */
 }
 
 .search-input {
@@ -543,27 +1143,37 @@ body {
     /* Đường viền mỏng phía trên */
 }
 
-.add-btn {
-    background-color: #5b54da;
-    color: white;
+.add-btn,
+.action-btn {
+    width: 100%;
+    height: 48px;
+    /* Cao hơn một chút để dễ bấm */
     border: none;
-    border-radius: 8px;
-    padding: 12px 20px;
-    font-size: 0.9rem;
-    font-weight: 500;
-    cursor: pointer;
+    border-radius: 12px;
+    /* Bo góc mềm mại */
+    color: white;
+    font-size: 0.95rem;
+    font-weight: 600;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    transition: background-color 0.3s, transform 0.2s;
-    width: 150px;
-    height: 50px;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+    /* Reset các thuộc tính cũ */
+    margin: 0;
+    min-width: unset;
+    flex: unset;
 }
 
-.add-btn:hover {
-    background-color: #3f31d6;
-    transform: translateY(-2px);
+.add-btn:hover,
+.action-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+    filter: brightness(1.1);
+    /* Làm sáng nhẹ khi hover */
 }
 
 .notes-grid {
@@ -575,6 +1185,18 @@ body {
 }
 
 @media (min-width: 768px) {
+    .settings-btn {
+        position: absolute;
+
+    }
+
+    .user-menu {
+        position: absolute;
+        top: 20px;
+        left: 80px;
+        /* Nằm cạnh nút settings */
+    }
+
     .notes-grid {
         grid-template-columns: repeat(2, 1fr);
     }
@@ -635,9 +1257,9 @@ body {
 
 .note-card {
     background-color: white;
-    border-radius: 12px;
+    border-radius: 10px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-    overflow: hidden;
+    overflow: visible !important;
     /* CHANGE: Add transform for initial scale and smooth transition */
     transform: scale(1);
     transition: transform 0.3s ease-in-out, box-shadow 0.3s;
@@ -668,11 +1290,10 @@ body {
 }
 
 
-.note-content {
-    padding: 20px;
+.note-actions {
     display: flex;
-    flex-direction: column;
-    height: 100%;
+    gap: 6px;
+    align-items: center;
 }
 
 .note-header {
@@ -680,6 +1301,7 @@ body {
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 15px;
+    position: relative;
 }
 
 .note-title {
@@ -694,25 +1316,132 @@ body {
 
 .note-actions {
     display: flex;
-    gap: 10px;
+    gap: 8px;
 }
 
-.delete-btn,
-.edit-btn {
-    color: #999;
-    background: none;
+.note-actions button {
+    width: 32px;
+    height: 32px;
     border: none;
-    font-size: 1.2rem;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
-    transition: color 0.3s;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    background: rgba(0, 0, 0, 0.04);
+    color: #666;
+    font-size: 0.95rem;
+    position: relative;
+    overflow: hidden;
 }
 
-.delete-btn:hover {
-    color: #ef4444;
+.note-actions button i {
+    font-size: 0.9rem;
+    position: relative;
+    z-index: 1;
+}
+
+.note-actions button::after {
+    content: attr(title);
+    position: absolute;
+    bottom: -32px;
+    left: 50%;
+    transform: translateX(-50%) scale(0);
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    pointer-events: none;
+    transition: transform 0.2s, opacity 0.2s;
+    opacity: 0;
+    z-index: 10;
+}
+
+.note-actions button:hover::after {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+}
+
+/* Khi note đã completed, ẩn button hoàn thành */
+.note-card.completed .complete-btn-header {
+    display: none;
+}
+
+.note-actions button::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    transform: translate(-50%, -50%);
+    transition: width 0.3s, height 0.3s;
+}
+
+.note-actions button:hover::before {
+    width: 100%;
+    height: 100%;
+}
+
+.note-actions button:active {
+    transform: scale(0.95);
+}
+
+/* Complete Button - Xanh lá */
+.complete-btn-header {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+}
+
+.complete-btn-header:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+    transform: translateY(-2px);
+}
+
+/* QR Button - Tím */
+.qr-btn {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    color: white;
+    box-shadow: 0 2px 4px rgba(139, 92, 246, 0.2);
+}
+
+.qr-btn:hover {
+    background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+    box-shadow: 0 4px 8px rgba(139, 92, 246, 0.3);
+    transform: translateY(-2px);
+}
+
+/* Edit Button - Xanh dương */
+.edit-btn {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
 }
 
 .edit-btn:hover {
-    color: #4f46e5;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+    transform: translateY(-2px);
+}
+
+/* Delete Button - Đỏ */
+.delete-btn {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+    box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
+}
+
+.delete-btn:hover {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+    transform: translateY(-2px);
 }
 
 .form-input.color-input {
@@ -726,31 +1455,6 @@ body {
     cursor: pointer;
     vertical-align: middle;
     /* Căn chỉnh với label */
-}
-
-/* Styles for the "Mark as Complete" button on the note card */
-.complete-btn {
-    background-color: #10b981;
-    /* Green */
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 8px 15px;
-    font-size: 0.9rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.3s, opacity 0.3s;
-    opacity: 0;
-    /* Hidden by default */
-    visibility: hidden;
-    /* Hidden by default */
-    display: inline-block;
-    /* Changed from block, to allow horizontal alignment */
-    margin-left: 10px;
-}
-
-.complete-btn:hover {
-    background-color: #0d976f;
 }
 
 /* Show the button when hovering over the note-card */
@@ -814,42 +1518,41 @@ body {
 
 .note-footer {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     align-items: center;
     padding-top: 15px;
-    border-top: 1px solid #eee;
+    border-top: 1px solid #f0f0f0;
     margin-top: 15px;
+    flex-wrap: wrap;
 }
 
 .note-tag {
     display: inline-flex;
     align-items: center;
-    padding: 5px 12px;
-    gap: 8px;
-    border-radius: 20px;
-    font-size: 0.85rem;
-}
-
-.note-tag:hover,
-.tag-item .tag-label:hover {
-    opacity: 0.9;
-    transform: scale(1.02);
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
-}
-
-.note-tag,
-.tag-option .tag-label,
-.tag-item .tag-label {
-    display: inline-flex;
-    align-items: center;
     padding: 6px 12px;
-    border-radius: 20px;
-    font-size: 0.85em;
-    margin-right: 8px;
-    margin-bottom: 5px;
-    transition: all 0.2s ease;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    /* Bóng nhẹ mặc định */
+    gap: 6px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1.5px solid rgba(255, 255, 255, 0.3);
+}
+
+.note-tag:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.note-tag i {
+    font-size: 0.9rem;
+}
+
+.note-tag i,
+.tag-option .tag-label i,
+.tag-item .tag-label i {
+    margin-right: 6px;
+    /* Tạo khoảng cách 6px giữa icon và text */
 }
 
 .tag-work {
@@ -873,21 +1576,26 @@ body {
 }
 
 .note-date {
-    font-size: 0.95rem;
-    color: #999;
+    font-size: 0.85rem;
+    color: #666;
     margin-left: auto;
-    border-radius: 20px;
-    padding: 5px 12px;
-    gap: 8px;
+    border-radius: 8px;
+    padding: 6px 12px;
+    background: rgba(0, 0, 0, 0.04);
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.25s;
+    cursor: help;
+    position: relative;
 }
 
+
 .note-card.completed .note-date {
-    color: #10b981;
-    /* Màu xanh lá tương tự màu trạng thái "Đã hoàn thành" */
+    background: #d1fae5;
+    color: #059669;
     animation: none;
-    /* Đảm bảo không nhấp nháy nếu nó đã quá hạn nhưng giờ đã hoàn thành */
-    background-color: transparent;
-    /* Đảm bảo không có màu nền từ overdue */
 }
 
 #viewNoteTime.completed-time {
@@ -899,32 +1607,129 @@ body {
     /* Đảm bảo không có hiệu ứng nhấp nháy */
 }
 
-/* Blinking animation for overdue notes */
-.note-date.overdue,
-/* Quy tắc hiện có cho thẻ ghi chú */
-#viewNoteTime.overdue
 
-/* NEW: Thêm quy tắc cho thời gian trong modal xem */
-    {
-    animation: blink-red-white 0.5s infinite alternate;
+
+/* Overdue animation - Nhấp nháy đỏ */
+.note-date.overdue {
+    animation: blink-red-white 1s infinite alternate;
 }
 
 @keyframes blink-red-white {
     from {
-        background-color: #ffffff;
-        /* Light red */
-        color: #cc0000;
-        /* Dark red text */
+        background: #fee2e2;
+        color: #dc2626;
+        box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
     }
 
     to {
-        background-color: #cc0000;
-        /* White */
-        color: #ffffff;
-        /* Original text color */
+        background: #dc2626;
+        color: white;
+        box-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
     }
 }
 
+/* Chưa đến giờ - Xanh dương */
+.note-date[data-status="future"]::before {
+    content: '🕐';
+}
+
+.note-date[data-status="future"] {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.note-date[data-status="future"]:hover {
+    background: #bfdbfe;
+    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+}
+
+/* Sắp đến - Vàng */
+.note-date[data-status="upcoming"]::before {
+    content: '⏰';
+}
+
+.note-date[data-status="upcoming"] {
+    background: #fef3c7;
+    color: #92400e;
+    animation: pulse-yellow 2s infinite;
+}
+
+@keyframes pulse-yellow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 rgba(245, 158, 11, 0.4);
+    }
+
+    50% {
+        box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+    }
+}
+
+.note-date[data-status="upcoming"]:hover {
+    background: #fde68a;
+    box-shadow: 0 2px 6px rgba(245, 158, 11, 0.4);
+}
+
+/* Đã trễ - Đỏ (giữ nguyên animation cũ) */
+.note-date.overdue,
+.note-date[data-status="overdue"] {
+    animation: blink-red-white 1s infinite alternate;
+}
+
+.note-date[data-status="overdue"]::before {
+    content: '⚠️';
+}
+
+.note-card.completed .note-date,
+.note-date[data-status="completed"] {
+    background: #d1fae5;
+    color: #059669;
+    animation: none;
+}
+
+.note-date[data-status="completed"]::before {
+    content: '✅';
+}
+
+.note-date[data-status="completed"]:hover {
+    background: #a7f3d0;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+}
+
+.note-date:hover {
+    transform: translateY(-2px);
+    z-index: 10;
+}
+
+.note-date::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) scale(0);
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    pointer-events: none;
+    transition: transform 0.2s, opacity 0.2s;
+    opacity: 0;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.note-date:not([data-tooltip=""]):hover::after {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+}
+
+.note-date:hover::after {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+}
 
 .empty-state {
     text-align: center;
@@ -1029,21 +1834,15 @@ body {
 }
 
 .modal-body {
-    padding: 10px;
+    padding: 20px;
     flex-grow: 1;
-    /* Cho phép modal-body chiếm hết không gian còn lại */
     overflow-y: auto;
-    /* Thêm thanh cuộn dọc khi nội dung tràn */
-    /* Để tránh thanh cuộn che mất padding bên phải của form-group */
     padding-right: 15px;
-    /* Thêm padding bên phải để bù cho thanh cuộn */
     box-sizing: border-box;
-    /* Quan trọng để padding tính vào kích thước */
 }
 
 .modal-body .form-group {
     margin-bottom: 0;
-    /* Remove default margin-bottom as modal-body gap handles spacing */
 }
 
 .modal-body .form-group:last-of-type {
@@ -1053,13 +1852,17 @@ body {
 
 .form-row {
     display: flex;
-    gap: 15px; /* Khoảng cách giữa 2 ô */
-    margin-bottom: 20px; /* Khoảng cách dưới cùng của hàng */
+    gap: 15px;
+    /* Khoảng cách giữa 2 ô */
+    margin-bottom: 20px;
+    /* Khoảng cách dưới cùng của hàng */
 }
 
 .form-row .form-group {
-    flex: 1; /* Chia đều chiều rộng 50-50 */
-    margin-bottom: 0; /* Xóa margin mặc định của form-group để căn đều */
+    flex: 1;
+    /* Chia đều chiều rộng 50-50 */
+    margin-bottom: 0;
+    /* Xóa margin mặc định của form-group để căn đều */
 }
 
 .meta-item {
@@ -1179,14 +1982,18 @@ input[type="time"]:focus {
 }
 
 .action-buttons-row {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap; /* Tự động xuống dòng nếu nhiều nút */
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 15px;
+    width: 100%;
+    margin-top: 20px;
 }
 
 .action-buttons-row button {
-    flex: 1; /* Các nút co giãn đều nhau */
-    min-width: 140px; /* Chiều rộng tối thiểu để không bị nát chữ */
+    flex: 1;
+    /* Các nút co giãn đều nhau */
+    min-width: 140px;
+    /* Chiều rộng tối thiểu để không bị nát chữ */
     height: 50px;
     display: flex;
     align-items: center;
@@ -1223,7 +2030,7 @@ input[type="time"]:focus {
     display: inline-flex;
     align-items: center;
     padding: 6px 12px;
-    border-radius: 20px;
+    border-radius: 10px;
     font-size: 0.85em;
     font-weight: 600;
     margin-right: 8px;
@@ -1265,7 +2072,7 @@ input[type="time"]:focus {
     background-color: #4f46e5;
     color: white;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 1rem;
     font-weight: 500;
     justify-content: center;
@@ -1278,10 +2085,6 @@ input[type="time"]:focus {
 
 .submit-btn:hover {
     background-color: #4338ca;
-}
-
-#manageTagsBtn {
-    background-color: #86b6dd;
 }
 
 .confirmation-modal .modal-body {
@@ -1440,65 +2243,74 @@ input[type="time"]:focus {
     /* Khoảng cách từ các điều khiển phía trên */
 }
 
-/* NEW: Định dạng chung cho các nút hành động */
-.action-btn {
-    flex: 1;
-    /* Cho phép nút mở rộng để lấp đầy không gian */
-    padding: 12px 15px;
-    border: none;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    font-weight: 500;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    /* Căn giữa nội dung nút */
-    gap: 8px;
-    transition: background-color 0.3s, transform 0.2s;
-    height: 50px;
-    width: 150px;
-
+.add-btn:active,
+.action-btn:active {
+    transform: scale(0.98);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.action-btn:hover {
-    transform: translateY(-2px);
-    /* Hiệu ứng nổi nhẹ khi hover */
+.add-btn i,
+.action-btn i {
+    font-size: 1.1rem;
 }
 
 /* NEW: Màu sắc cụ thể cho nút "Hoàn thành tất cả" */
 .complete-all-btn {
-    background-color: #10b981;
-    /* Màu xanh lá cây */
-    color: white;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
 }
 
-.complete-all-btn:hover {
-    background-color: #0d976f;
-}
-
-/* NEW: Màu sắc cụ thể cho nút "Bắt đầu ngày mới" (Reset) */
 .reset-all-btn {
-    background-color: #f59e0b;
-    /* Màu cam */
-    color: white;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    box-shadow: 0 4px 10px rgba(245, 158, 11, 0.3);
 }
 
-.reset-all-btn:hover {
-    background-color: #d97706;
+.add-btn {
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);
 }
 
 .export-excel-btn {
-    background-color: #16a34a;
-    /* Màu xanh lá đậm cho Excel */
-    color: white;
-}
-
-.export-excel-btn:hover {
-    background-color: #15803d;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
 }
 
 @media (max-width: 767px) {
+    .header h1 {
+        font-size: 1.8rem;
+        /* Chữ nhỏ lại để có không gian */
+        margin-top: 50px;
+        /* Đẩy chữ xuống dưới các nút */
+    }
+
+    .settings-btn {
+        position: absolute;
+        top: 0px;
+        left: 15px;
+        /* Đặt ở góc trái */
+    }
+
+    .user-menu {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        /* Đặt ở góc phải */
+    }
+
+    .user-dropdown {
+        left: auto !important;
+        /* Bỏ left: 0 */
+        right: 0 !important;
+        /* Căn lề phải */
+    }
+
+    .user-dropdown::before {
+        left: auto !important;
+        /* Bỏ left: 20px */
+        right: 20px !important;
+        /* Căn mũi tên sang phải */
+    }
+
     .filter-group {
         flex-direction: column;
         width: 100%;
@@ -1762,14 +2574,14 @@ input[type="time"]:focus {
 .settings-btn {
     background: none;
     border: none;
-    font-size: 1.5rem;
+    font-size: 2rem;
     color: #4f46e5;
     cursor: pointer;
     transition: color 0.3s, transform 0.2s;
     padding: 0;
     position: absolute;
-    top: 20px;
-    left: 20px;
+    top: 15px;
+    left: 10px;
     z-index: 10;
 }
 
@@ -1779,16 +2591,11 @@ input[type="time"]:focus {
 }
 
 #notesContainer {
-    /* Or whatever the ID/class of your notes grid container is */
     display: grid;
-    /* This is the crucial part: use the CSS variable here */
     grid-template-columns: repeat(var(--notes-grid-columns), 1fr);
-    gap: 20px;
-    /* Adjust as needed */
-    padding-top: 20px;
-    /* Adjust as needed */
+    gap: 10px;
+    padding-top: 5px;
     align-items: start;
-    /* Ensures items align at the top */
 }
 
 .filter-select option:disabled {
