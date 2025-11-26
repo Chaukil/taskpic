@@ -2278,9 +2278,7 @@ input[type="time"]:focus {
 @media (max-width: 767px) {
     .header h1 {
         font-size: 1.8rem;
-        /* Chữ nhỏ lại để có không gian */
-        margin-top: 50px;
-        /* Đẩy chữ xuống dưới các nút */
+        margin-top: 10px;
     }
 
     .settings-btn {

@@ -963,317 +963,243 @@ document.addEventListener("DOMContentLoaded", function () {
     let currentLanguage = localStorage.getItem('language') || 'vi'; // Mặc định là Tiếng Việt
 
     function applyTranslations() {
-        const lang = translations[currentLanguage];
+    const lang = translations[currentLanguage];
 
-        const setText = (id, text) => {
-            const el = document.getElementById(id);
-            if (el) el.textContent = text;
-        };
+    // Helper functions để gán giá trị an toàn, tránh lỗi "null"
+    const setText = (id, text) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+    };
+    const setHTML = (id, html) => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = html;
+    };
+    const setPlaceholder = (id, text) => {
+        const el = document.getElementById(id);
+        if (el) el.placeholder = text;
+    };
+    const updateOption = (selectId, value, text) => {
+        const opt = document.querySelector(`#${selectId} option[value="${value}"]`);
+        if (opt) opt.textContent = text;
+    };
 
-        const setHTML = (id, html) => {
-            const el = document.getElementById(id);
-            if (el) el.innerHTML = html;
-        };
+    // --- HEADER & GENERAL ---
+    const headerTitle = document.querySelector('.header h1');
+    if (headerTitle) headerTitle.textContent = localStorage.getItem('appName') || lang.defaultAppName;
+    
+    // Slogan không có trong file HTML mới, nhưng để lại cho an toàn
+    const headerSlogan = document.querySelector('.header p');
+    if (headerSlogan) headerSlogan.textContent = lang.appSlogan;
+    
+    setPlaceholder('searchInput', lang.searchInputPlaceholder);
+    
+    const filterSelectAll = document.querySelector('#filterSelect option[value="all"]');
+    if (filterSelectAll) filterSelectAll.textContent = lang.allNotesOption;
+    
+    const completedOption = document.querySelector('#filterSelect option[value="completed"]');
+    if (completedOption) completedOption.textContent = lang.completedNotesOption;
 
-        // Header
-        const savedAppName = localStorage.getItem('appName');
-        if (savedAppName) {
-            document.querySelector('.header h1').textContent = savedAppName;
-        } else {
-            document.querySelector('.header h1').textContent = lang.defaultAppName;
+    setHTML('helpTextIcon', lang.helpTextFontAwesome);
+    setText('helpTextColor', lang.helpTextColorPicker);
+    setHTML('footerText', lang.footerText);
+
+    // --- BUTTONS ---
+    setHTML('scanQRBtn', lang.scanQRBtn);
+    setHTML('addNoteBtn', lang.addNoteBtn);
+    setHTML('completeAllBtn', lang.completeAllBtn);
+    setHTML('resetAllBtn', lang.resetAllBtn);
+    setHTML('exportExcelBtn', lang.exportExcelBtn);
+    setHTML('timeReportsBtn', lang.timeReportsBtn);
+
+    // --- EMPTY STATE ---
+    const emptyTitle = document.querySelector('#emptyState h3');
+    if (emptyTitle) emptyTitle.textContent = lang.emptyStateTitle;
+    const emptyText = document.querySelector('#emptyState p');
+    if (emptyText) emptyText.textContent = lang.emptyStateText;
+
+    // --- NOTE FORM ---
+    const noteTitleLabel = document.querySelector('label[for="noteTitle"]');
+    if (noteTitleLabel) noteTitleLabel.textContent = lang.noteTitleLabel;
+    
+    const noteContentLabel = document.querySelector('label[for="noteContent"]');
+    if (noteContentLabel) noteContentLabel.textContent = lang.noteContentLabel;
+    
+    const noteTimeLabel = document.querySelector('label[for="noteTime"]');
+    if (noteTimeLabel) noteTimeLabel.textContent = lang.noteTimeLabel;
+    
+    setText('notificationTimeBeforeLabel', lang.notificationTimeBeforeLabel);
+    setText('noteDayOfWeekLabel', lang.noteDayOfWeekLabel);
+    setText('expectedDurationLabel', lang.expectedDurationLabel);
+    setText('helpExpectedDuration', lang.helpExpectedDuration);
+    setText('subTasksLabel', lang.subTasksLabel);
+    
+    const addSubTaskBtn = document.getElementById('addSubTaskBtn');
+    if (addSubTaskBtn) addSubTaskBtn.innerHTML = `<i class="fas fa-plus"></i> ${lang.addSubTask}`;
+
+    // Cập nhật Label "Thẻ" một cách an toàn
+    const noteTagLabelElements = document.querySelectorAll('.form-group label');
+    noteTagLabelElements.forEach(label => {
+        const span = label.querySelector('span');
+        if (span && label.nextElementSibling && label.nextElementSibling.id === 'noteTagsContainer') {
+            span.textContent = lang.noteTagLabel;
         }
+    });
 
-        document.querySelector('.header p').textContent = lang.appSlogan;
-        document.getElementById('searchInput').placeholder = lang.searchInputPlaceholder;
-        document.querySelector('#filterSelect option[value="all"]').textContent = lang.allNotesOption;
-        document.getElementById('helpTextIcon').innerHTML = lang.helpTextFontAwesome;
-        document.getElementById('helpTextColor').textContent = lang.helpTextColorPicker;
-        document.getElementById('footerText').innerHTML = lang.footerText;
-        document.getElementById('scanQRBtn').innerHTML = lang.scanQRBtn;
-        document.getElementById('qrScannerTitle').textContent = lang.qrScannerTitle;
-        document.getElementById('qrGeneratorTitle').textContent = lang.qrGeneratorTitle;
-        document.getElementById('addFromQRTitle').textContent = lang.addFromQRTitle;
-        document.getElementById('uploadQRImageBtn').innerHTML = lang.uploadQRImageBtn;
-        document.getElementById('downloadQRBtn').innerHTML = lang.downloadQRBtn;
-        document.getElementById('copyQRLinkBtn').innerHTML = lang.copyQRLinkBtn;
-
-
-        let completedOption = document.querySelector('#filterSelect option[value="completed"]');
-        if (completedOption) {
-            completedOption.textContent = lang.completedNotesOption;
-        }
-        document.getElementById('addNoteBtn').innerHTML = lang.addNoteBtn;
-        document.getElementById('completeAllBtn').innerHTML = lang.completeAllBtn;
-        document.getElementById('resetAllBtn').innerHTML = lang.resetAllBtn;
-
-        // Trạng thái rỗng (Empty State)
-        document.querySelector('#emptyState h3').textContent = lang.emptyStateTitle;
-        document.querySelector('#emptyState p').textContent = lang.emptyStateText;
-
-        // Modal Thêm/Sửa Ghi chú
-        document.querySelector('label[for="noteTitle"]').textContent = lang.noteTitleLabel;
-        document.querySelector('label[for="noteContent"]').textContent = lang.noteContentLabel;
-        document.querySelector('label[for="noteTime"]').textContent = lang.noteTimeLabel;
-
-
-        document.getElementById('notificationTimeBeforeLabel').textContent = lang.notificationTimeBeforeLabel;
-        document.querySelector('#notificationTimeBefore option[value="0"]').textContent = lang.noNotification;
-        document.querySelector('#notificationTimeBefore option[value="5"]').textContent = lang.minutes5;
-        document.querySelector('#notificationTimeBefore option[value="10"]').textContent = lang.minutes10;
-        document.querySelector('#notificationTimeBefore option[value="15"]').textContent = lang.minutes15;
-        document.querySelector('#notificationTimeBefore option[value="30"]').textContent = lang.minutes30;
-        document.querySelector('#notificationTimeBefore option[value="60"]').textContent = lang.minutes60;
-
-        document.querySelector('#dayOfWeekSelect option[value="all"]').textContent = lang.allDaysOption;
-        document.querySelector('#dayOfWeekSelect option[value="0"]').textContent = lang.sunday;
-        document.querySelector('#dayOfWeekSelect option[value="1"]').textContent = lang.monday;
-        document.querySelector('#dayOfWeekSelect option[value="2"]').textContent = lang.tuesday;
-        document.querySelector('#dayOfWeekSelect option[value="3"]').textContent = lang.wednesday;
-        document.querySelector('#dayOfWeekSelect option[value="4"]').textContent = lang.thursday;
-        document.querySelector('#dayOfWeekSelect option[value="5"]').textContent = lang.friday;
-        document.querySelector('#dayOfWeekSelect option[value="6"]').textContent = lang.saturday;
-
-        // Note Form - Day of Week
-        document.getElementById('noteDayOfWeekLabel').textContent = lang.noteDayOfWeekLabel;
-        document.querySelector('#noteDayOfWeek option[value="0"]').textContent = lang.sunday;
-        document.querySelector('#noteDayOfWeek option[value="1"]').textContent = lang.monday;
-        document.querySelector('#noteDayOfWeek option[value="2"]').textContent = lang.tuesday;
-        document.querySelector('#noteDayOfWeek option[value="3"]').textContent = lang.wednesday;
-        document.querySelector('#noteDayOfWeek option[value="4"]').textContent = lang.thursday;
-        document.querySelector('#noteDayOfWeek option[value="5"]').textContent = lang.friday;
-        document.querySelector('#noteDayOfWeek option[value="6"]').textContent = lang.saturday;
-        const durationLabel = document.getElementById('expectedDurationLabel');
-        if (durationLabel) durationLabel.textContent = lang.expectedDurationLabel;
-        const durationHelp = document.getElementById('helpExpectedDuration');
-        if (durationHelp) durationHelp.textContent = lang.helpExpectedDuration;
-
-        // Export Excel Button
-        document.getElementById('exportExcelBtn').innerHTML = lang.exportExcelBtn;
-        const noteTagLabelElements = document.querySelectorAll('.form-group label');
-        noteTagLabelElements.forEach(label => {
-            // Tìm span bên trong label để chỉ thay đổi text của nó
-            const span = label.querySelector('span');
-            if (span && label.nextElementSibling && label.nextElementSibling.id === 'noteTagsContainer') {
-                span.textContent = lang.noteTagLabel;
-            }
-        });
-
-        const manageTagsBtn = document.getElementById('manageTagsBtn');
-        if (manageTagsBtn) {
-            const text = lang.manageTagsShort || 'Quản lý thẻ';
-            manageTagsBtn.innerHTML = `<i class="fas fa-cog"></i> ${text}`;
-        }
-
-        document.getElementById('manageTagsBtn').innerHTML = lang.manageTagsBtn;
-
-        // Modal Xem Ghi chú
-        const viewNoteLabels = document.querySelectorAll('#viewNoteModal .meta-item .form-label');
-        if (viewNoteLabels[0]) viewNoteLabels[0].textContent = lang.viewNoteTagLabel;
-        if (viewNoteLabels[1]) viewNoteLabels[1].textContent = lang.viewNoteStatusLabel;
-        if (viewNoteLabels[2]) viewNoteLabels[2].textContent = lang.viewNoteTimeLabel;
-
-        const contentLabel = document.querySelector('#viewNoteModal .form-group .form-label');
-        if (contentLabel) contentLabel.textContent = lang.viewNoteContentLabel;
-
-        // Modal Xác nhận
-        document.querySelector('.confirmation-text').textContent = lang.confirmDeleteText;
-        document.getElementById('cancelDeleteBtn').textContent = lang.cancelBtn;
-        document.getElementById('confirmDeleteBtn').textContent = lang.deleteBtnConfirm;
-
-        // Modal Quản lý Thẻ
-        document.querySelector('#manageTagsModal .modal-header .modal-title').textContent = lang.manageTagsModalTitle;
-        document.querySelector('label[for="newTagName"]').textContent = lang.newTagNameLabel;
-
-        // Thêm label cho input tiếng Anh
-        const tagNameEnLabel = document.querySelector('label[for="newTagNameEn"]');
-        if (tagNameEnLabel) {
-            if (currentLanguage === 'vi') {
-                tagNameEnLabel.textContent = 'Tên Thẻ (Tiếng Anh)';
-            } else {
-                tagNameEnLabel.textContent = 'Tag Name (English)';
-            }
-        }
-
-        document.querySelector('label[for="newTagIcon"]').textContent = lang.newTagIconLabel;
-        document.querySelector('label[for="newTagColor"]').textContent = lang.newTagColorLabel;
-
-        const currentTagsTitle = document.querySelector('#manageTagsModal h4');
-        if (currentTagsTitle) currentTagsTitle.textContent = lang.currentTagsTitle;
-
-        if (currentTagsList.textContent.includes('Chưa có thẻ nào.') || currentTagsList.textContent.includes('No tags yet.')) {
-            currentTagsList.innerHTML = `<p>${lang.noTagsMessage}</p>`;
-        }
-
-        // Modal Cài đặt
-        document.querySelector('#settingsModal .modal-header .modal-title').textContent = lang.settingsModalTitle;
-        document.getElementById('appNameLabel').textContent = lang.appNameLabel;
-        appNameInput.placeholder = lang.appNamePlaceholder;
-        document.querySelector('label[for="noteColumns"]').textContent = lang.noteColumnsLabel;
-        document.querySelector('#noteColumns option[value="1"]').textContent = lang.column1;
-        document.querySelector('#noteColumns option[value="2"]').textContent = lang.column2;
-        document.querySelector('#noteColumns option[value="3"]').textContent = lang.column3;
-        document.querySelector('#noteColumns option[value="4"]').textContent = lang.column4;
-        document.querySelector('label[for="backgroundColor"]').textContent = lang.backgroundColorLabel;
-        document.querySelector('label[for="languageSelect"]').textContent = lang.languageLabel;
-        document.querySelector('#languageSelect option[value="vi"]').textContent = lang.vietnameseLanguage;
-        document.querySelector('#languageSelect option[value="en"]').textContent = lang.englishLanguage;
-        document.getElementById('saveSettingsBtn').textContent = lang.saveSettingsBtn;
-        document.getElementById('notificationTimeBeforeLabel').textContent = lang.notificationTimeBeforeLabel;
-
-        // Cập nhật các văn bản nút động
-        document.getElementById('modalTitle').textContent = editingNoteKey ? lang.editNoteModalTitle : lang.newNoteModalTitle;
-        document.getElementById('submitNoteBtn').textContent = editingNoteKey ? lang.updateNoteBtn : lang.saveNoteBtn;
-        document.getElementById('addOrUpdateTagBtn').innerHTML = editingTagId ? lang.updateTagBtn : lang.addTagBtn;
-
-        // Cập nhật placeholder cho các input
-        newTagNameInput.placeholder = lang.newTagNamePlaceholder;
-        if (newTagNameEnInput) {
-            newTagNameEnInput.placeholder = lang.newTagNameEnPlaceholder;
-        }
-        newTagIconInput.placeholder = lang.newTagIconPlaceholder;
-
-        document.getElementById('timeReportsBtn').innerHTML = lang.timeReportsBtn;
-        document.getElementById('scanQRBtn').innerHTML = lang.scanQRBtn;
-
-        // Modal Báo cáo
-        document.getElementById('timeReportsModalTitle').textContent = lang.timeReportsModalTitle;
-        document.getElementById('totalTasksText').textContent = lang.totalTasksText;
-        document.getElementById('onTimeTasksText').textContent = lang.onTimeTasksText;
-        document.getElementById('lateTasksText').textContent = lang.lateTasksText;
-        document.getElementById('avgTimeText').textContent = lang.avgTimeText;
-        document.getElementById('detailsTitle').textContent = lang.detailsTitle;
-
-        // Modal QR
-        document.getElementById('qrScannerTitle').textContent = lang.qrScannerTitle;
-        document.getElementById('qrGeneratorTitle').textContent = lang.qrGeneratorTitle;
-        document.getElementById('addFromQRTitle').textContent = lang.addFromQRTitle;
-        document.getElementById('uploadQRImageBtn').innerHTML = lang.uploadQRImageBtn;
-        if (document.getElementById('pasteLinkBtn'))
-            document.getElementById('pasteLinkBtn').innerHTML = lang.pasteLinkBtn;
-        document.getElementById('downloadQRBtn').innerHTML = lang.downloadQRBtn;
-        document.getElementById('copyQRLinkBtn').innerHTML = lang.copyQRLinkBtn;
-
-        // Re-render chart if modal is open to update labels
-        if (timeReportsModal.classList.contains('active')) {
-            generateTimeReports();
-        }
-
-        const qrConfirmMsg = document.querySelector('#addFromQRModal .modal-body > p');
-        if (qrConfirmMsg) {
-            qrConfirmMsg.textContent = lang.qrConfirmMessage;
-        }
-
-        const qrConfirmBtn = document.querySelector('#addFromQRModal button[type="submit"]');
-        if (qrConfirmBtn) {
-            qrConfirmBtn.innerHTML = `<i class="fas fa-check"></i> ${lang.qrConfirmAddBtn}`;
-        }
-
-        // QR Day of week labels
-        const qrDayOfWeekSelect = document.getElementById('qrNoteDayOfWeek');
-        if (qrDayOfWeekSelect) {
-            qrDayOfWeekSelect.querySelector('option[value="0"]').textContent = lang.sunday;
-            qrDayOfWeekSelect.querySelector('option[value="1"]').textContent = lang.monday;
-            qrDayOfWeekSelect.querySelector('option[value="2"]').textContent = lang.tuesday;
-            qrDayOfWeekSelect.querySelector('option[value="3"]').textContent = lang.wednesday;
-            qrDayOfWeekSelect.querySelector('option[value="4"]').textContent = lang.thursday;
-            qrDayOfWeekSelect.querySelector('option[value="5"]').textContent = lang.friday;
-            qrDayOfWeekSelect.querySelector('option[value="6"]').textContent = lang.saturday;
-        }
-
-        // QR Form labels
-        const qrFormLabels = document.querySelectorAll('#addFromQRForm .form-label');
-        if (qrFormLabels.length >= 5) {
-            qrFormLabels[0].textContent = lang.noteTitleLabel;
-            qrFormLabels[1].textContent = lang.noteDayOfWeekLabel;
-            qrFormLabels[2].textContent = lang.noteContentLabel;
-            qrFormLabels[3].textContent = lang.noteTimeLabel;
-            qrFormLabels[4].textContent = lang.expectedDurationLabel;
-            qrFormLabels[5].textContent = lang.noteTagLabel;
-        }
-
-        const qrOtherOptionsText = document.getElementById('qrOtherOptionsText');
-        if (qrOtherOptionsText) {
-            qrOtherOptionsText.textContent = lang.qrOtherOptions;
-        }
-
-        const profileBtn = document.getElementById('profileBtn');
-        if (profileBtn) profileBtn.innerHTML = `<i class="fas fa-user"></i> ${lang.menuProfile}`;
-
-        const logoutBtn = document.getElementById('logoutBtn');
-        if (logoutBtn) logoutBtn.innerHTML = `<i class="fas fa-sign-out-alt"></i> ${lang.menuLogout}`;
-
-        // Profile Modal Elements
-        const profileModalTitle = document.getElementById('profileModalTitle');
-        if (profileModalTitle) profileModalTitle.textContent = lang.profileModalTitle;
-
-        const labelProfileEmail = document.getElementById('labelProfileEmail');
-        if (labelProfileEmail) labelProfileEmail.textContent = lang.labelProfileEmail;
-
-        const labelProfileName = document.getElementById('labelProfileName');
-        if (labelProfileName) labelProfileName.textContent = lang.labelProfileName;
-
-        const labelProfileJoined = document.getElementById('labelProfileJoined');
-        if (labelProfileJoined) labelProfileJoined.textContent = lang.labelProfileJoined;
-
-        const labelSecurity = document.getElementById('labelSecurity');
-        if (labelSecurity) labelSecurity.textContent = lang.labelSecurity;
-
-        const textSendResetBtn = document.getElementById('textSendResetBtn');
-        if (textSendResetBtn) textSendResetBtn.textContent = lang.textSendResetBtn;
-
-        const helpTextReset = document.getElementById('helpTextReset');
-        if (helpTextReset) helpTextReset.textContent = lang.helpTextReset;
-
-        const saveProfileBtn = document.getElementById('saveProfileBtn');
-        if (saveProfileBtn) saveProfileBtn.textContent = lang.saveProfileBtn;
-
-        const subTasksLabel = document.getElementById('subTasksLabel');
-        if (subTasksLabel) subTasksLabel.textContent = lang.subTasksLabel;
-
-        const addSubTaskBtn = document.getElementById('addSubTaskBtn');
-        if (addSubTaskBtn) {
-            addSubTaskBtn.innerHTML = `<i class="fas fa-plus"></i> ${lang.addSubTask}`;
-        }
-
-        document.querySelectorAll('.sub-task-text-input').forEach(input => {
-            input.placeholder = lang.subTaskPlaceholder;
-        });
-
-        document.querySelectorAll('.sub-task-link-input').forEach(input => {
-            input.placeholder = lang.subTaskLinkPlaceholder;
-        });
-
-        const viewSubTasksLabel = document.querySelector('#viewSubTasksGroup .form-label');
-        if (viewSubTasksLabel) viewSubTasksLabel.textContent = lang.subTasksLabel;
-
-        // Copy button text trong view sub-tasks
-        document.querySelectorAll('.copy-link-btn').forEach(btn => {
-            const icon = btn.querySelector('i');
-            btn.innerHTML = '';
-            btn.appendChild(icon);
-            btn.innerHTML += ` ${lang.copyLink}`;
-        });
-
-        const qrConfirmMessage = document.getElementById('qrConfirmMessage');
-        if (qrConfirmMessage) qrConfirmMessage.textContent = lang.qrConfirmMessage;
-
-        const qrSubTasksLabel = document.getElementById('qrSubTasksLabel');
-        if (qrSubTasksLabel) qrSubTasksLabel.textContent = lang.subTasksLabel;
-
-        const addQRSubTaskBtn = document.getElementById('addQRSubTaskBtn');
-        if (addQRSubTaskBtn) {
-            addQRSubTaskBtn.innerHTML = `<i class="fas fa-plus"></i> ${lang.addSubTask}`;
-        }
-
-        // Cập nhật placeholder cho QR sub-task inputs
-        document.querySelectorAll('#qrSubTasksContainer .sub-task-text-input').forEach(input => {
-            input.placeholder = lang.subTaskPlaceholder;
-        });
-
-        document.querySelectorAll('#qrSubTasksContainer .sub-task-link-input').forEach(input => {
-            input.placeholder = lang.subTaskLinkPlaceholder;
-        });
+    // Cập nhật nút "Quản lý"
+    const manageTagsBtn = document.getElementById('manageTagsBtn');
+    if (manageTagsBtn) {
+        const text = lang.manageTagsShort || 'Quản lý';
+        manageTagsBtn.innerHTML = `<i class="fas fa-cog"></i> ${text}`;
     }
+
+    // --- SELECT OPTIONS ---
+    ['dayOfWeekSelect', 'noteDayOfWeek', 'qrNoteDayOfWeek'].forEach(id => {
+        if (document.getElementById(id)) {
+            if (id === 'dayOfWeekSelect') updateOption(id, 'all', lang.allDaysOption);
+            updateOption(id, '0', lang.sunday); updateOption(id, '1', lang.monday); updateOption(id, '2', lang.tuesday);
+            updateOption(id, '3', lang.wednesday); updateOption(id, '4', lang.thursday); updateOption(id, '5', lang.friday);
+            updateOption(id, '6', lang.saturday);
+        }
+    });
+    updateOption('notificationTimeBefore', '0', lang.noNotification); updateOption('notificationTimeBefore', '5', lang.minutes5);
+    updateOption('notificationTimeBefore', '10', lang.minutes10); updateOption('notificationTimeBefore', '15', lang.minutes15);
+    updateOption('notificationTimeBefore', '30', lang.minutes30); updateOption('notificationTimeBefore', '60', lang.minutes60);
+
+    // --- SETTINGS MODAL ---
+    const settingsTitle = document.querySelector('#settingsModal .modal-header .modal-title');
+    if (settingsTitle) settingsTitle.textContent = lang.settingsModalTitle;
+    setText('appNameLabel', lang.appNameLabel);
+    setPlaceholder('appNameInput', lang.appNamePlaceholder);
+    const noteColumnsLabel = document.querySelector('label[for="noteColumns"]');
+    if (noteColumnsLabel) noteColumnsLabel.textContent = lang.noteColumnsLabel;
+    updateOption('noteColumns', '1', lang.column1); updateOption('noteColumns', '2', lang.column2);
+    updateOption('noteColumns', '3', lang.column3); updateOption('noteColumns', '4', lang.column4);
+    const bgColorLabel = document.querySelector('label[for="backgroundColor"]');
+    if (bgColorLabel) bgColorLabel.textContent = lang.backgroundColorLabel;
+    const langLabel = document.querySelector('label[for="languageSelect"]');
+    if (langLabel) langLabel.textContent = lang.languageLabel;
+    updateOption('languageSelect', 'vi', lang.vietnameseLanguage);
+    updateOption('languageSelect', 'en', lang.englishLanguage);
+    setText('saveSettingsBtn', lang.saveSettingsBtn);
+
+    // --- MANAGE TAGS MODAL ---
+    const manageTagsTitle = document.querySelector('#manageTagsModal .modal-header .modal-title');
+    if (manageTagsTitle) manageTagsTitle.textContent = lang.manageTagsModalTitle;
+    const tagNameLabel = document.querySelector('label[for="newTagName"]');
+    if (tagNameLabel) tagNameLabel.textContent = lang.newTagNameLabel;
+    const tagNameEnLabel = document.querySelector('label[for="newTagNameEn"]');
+    if (tagNameEnLabel) tagNameEnLabel.textContent = currentLanguage === 'vi' ? 'Tên Thẻ (Tiếng Anh)' : 'Tag Name (English)';
+    const tagIconLabel = document.querySelector('label[for="newTagIcon"]');
+    if (tagIconLabel) tagIconLabel.textContent = lang.newTagIconLabel;
+    const tagColorLabel = document.querySelector('label[for="newTagColor"]');
+    if (tagColorLabel) tagColorLabel.textContent = lang.newTagColorLabel;
+    const currentTagsTitle = document.querySelector('#manageTagsModal h4');
+    if (currentTagsTitle) currentTagsTitle.textContent = lang.currentTagsTitle;
+    setPlaceholder('newTagName', lang.newTagNamePlaceholder);
+    if (document.getElementById('newTagNameEn')) setPlaceholder('newTagNameEn', lang.newTagNameEnPlaceholder);
+    setPlaceholder('newTagIcon', lang.newTagIconPlaceholder);
+
+    // Cập nhật message trong Current Tags List
+    const currentTagsList = document.getElementById('currentTagsList');
+    if (currentTagsList && (currentTagsList.textContent.includes('Chưa có thẻ nào.') || currentTagsList.textContent.includes('No tags yet.'))) {
+        currentTagsList.innerHTML = `<p>${lang.noTagsMessage}</p>`;
+    }
+
+    // --- VIEW NOTE MODAL ---
+    const viewNoteLabels = document.querySelectorAll('#viewNoteModal .meta-item .form-label');
+    if (viewNoteLabels.length >= 3) {
+        viewNoteLabels[0].textContent = lang.viewNoteTagLabel;
+        viewNoteLabels[1].textContent = lang.viewNoteStatusLabel;
+        viewNoteLabels[2].textContent = lang.viewNoteTimeLabel;
+    }
+    const viewContentLabel = document.querySelector('#viewNoteContent')?.parentElement?.querySelector('.form-label');
+    if (viewContentLabel) viewContentLabel.textContent = lang.viewNoteContentLabel;
+    const viewSubTasksLabel = document.querySelector('#viewSubTasksGroup .form-label');
+    if (viewSubTasksLabel) viewSubTasksLabel.textContent = lang.subTasksLabel;
+
+    // --- CONFIRM DELETE MODAL ---
+    const confirmText = document.querySelector('.confirmation-text');
+    if (confirmText) confirmText.textContent = lang.confirmDeleteText;
+    setText('cancelDeleteBtn', lang.cancelBtn);
+    setText('confirmDeleteBtn', lang.deleteBtnConfirm);
+
+    // --- QR MODALS ---
+    setText('qrScannerTitle', lang.qrScannerTitle);
+    setText('qrGeneratorTitle', lang.qrGeneratorTitle);
+    setText('addFromQRTitle', lang.addFromQRTitle);
+    setHTML('uploadQRImageBtn', lang.uploadQRImageBtn);
+    setHTML('pasteLinkBtn', lang.pasteLinkBtn);
+    setHTML('downloadQRBtn', lang.downloadQRBtn);
+    setHTML('copyQRLinkBtn', lang.copyQRLinkBtn);
+    setText('qrConfirmMessage', lang.qrConfirmMessage);
+    setText('qrSubTasksLabel', lang.subTasksLabel);
+    const addQRSubTaskBtn = document.getElementById('addQRSubTaskBtn');
+    if (addQRSubTaskBtn) addQRSubTaskBtn.innerHTML = `<i class="fas fa-plus"></i> ${lang.addSubTask}`;
+    setText('qrOtherOptionsText', lang.qrOtherOptions);
+    const qrConfirmBtn = document.querySelector('#addFromQRModal button[type="submit"]');
+    if (qrConfirmBtn) qrConfirmBtn.innerHTML = `<i class="fas fa-check"></i> ${lang.qrConfirmAddBtn}`;
+
+    // QR Form labels
+    const qrFormLabels = document.querySelectorAll('#addFromQRForm .form-label');
+    if (qrFormLabels.length >= 5) {
+        qrFormLabels[0].textContent = lang.noteTitleLabel;
+        qrFormLabels[1].textContent = lang.noteDayOfWeekLabel;
+        qrFormLabels[2].textContent = lang.noteContentLabel;
+        qrFormLabels[3].textContent = lang.noteTimeLabel;
+        qrFormLabels[4].textContent = lang.expectedDurationLabel;
+        qrFormLabels[5].textContent = lang.noteTagLabel;
+    }
+
+    // Cập nhật placeholder cho QR sub-task inputs
+    document.querySelectorAll('#qrSubTasksContainer .sub-task-text-input').forEach(input => {
+        input.placeholder = lang.subTaskPlaceholder;
+    });
+
+    document.querySelectorAll('#qrSubTasksContainer .sub-task-link-input').forEach(input => {
+        input.placeholder = lang.subTaskLinkPlaceholder;
+    });
+
+    // --- TIME REPORTS MODAL ---
+    setText('timeReportsModalTitle', lang.timeReportsModalTitle);
+    setText('totalTasksText', lang.totalTasksText);
+    setText('onTimeTasksText', lang.onTimeTasksText);
+    setText('lateTasksText', lang.lateTasksText);
+    setText('avgTimeText', lang.avgTimeText);
+    setText('detailsTitle', lang.detailsTitle);
+
+    // --- PROFILE MODAL ---
+    setHTML('profileBtn', `<i class="fas fa-user"></i> ${lang.menuProfile}`);
+    setHTML('logoutBtn', `<i class="fas fa-sign-out-alt"></i> ${lang.menuLogout}`);
+    setText('profileModalTitle', lang.profileModalTitle);
+    setText('labelProfileEmail', lang.labelProfileEmail);
+    setText('labelProfileName', lang.labelProfileName);
+    setText('labelProfileJoined', lang.labelProfileJoined);
+    setText('labelSecurity', lang.labelSecurity);
+    setText('textSendResetBtn', lang.textSendResetBtn);
+    setText('helpTextReset', lang.helpTextReset);
+    setText('saveProfileBtn', lang.saveProfileBtn);
+
+    // --- DYNAMIC ELEMENTS ---
+    document.querySelectorAll('.sub-task-text-input').forEach(input => input.placeholder = lang.subTaskPlaceholder);
+    document.querySelectorAll('.sub-task-link-input').forEach(input => input.placeholder = lang.subTaskLinkPlaceholder);
+    document.querySelectorAll('.copy-link-btn').forEach(btn => {
+        const icon = btn.querySelector('i');
+        btn.innerHTML = '';
+        if (icon) btn.appendChild(icon);
+        btn.innerHTML += ` ${lang.copyLink}`;
+    });
+
+    // --- DYNAMIC BUTTON STATES ---
+    if (document.getElementById('modalTitle')) document.getElementById('modalTitle').textContent = editingNoteKey ? lang.editNoteModalTitle : lang.newNoteModalTitle;
+    if (document.getElementById('submitNoteBtn')) document.getElementById('submitNoteBtn').textContent = editingNoteKey ? lang.updateNoteBtn : lang.saveNoteBtn;
+    if (document.getElementById('addOrUpdateTagBtn')) document.getElementById('addOrUpdateTagBtn').innerHTML = editingTagId ? lang.updateTagBtn : lang.addTagBtn;
+
+    // --- RE-RENDER CHART (If open) ---
+    if (timeReportsModal && timeReportsModal.classList.contains('active')) {
+        generateTimeReports();
+    }
+}
+
 
     async function handlePasteLink() {
         try {
@@ -2793,95 +2719,95 @@ document.addEventListener("DOMContentLoaded", function () {
         renderTimeReportsChart(weeklyNotes);
     }
 
-function renderTimeReportsChart(weeklyNotes) {
-    // 1. Phá hủy instance chart cũ để tránh memory leak
-    if (window.timeReportsChartInstance) {
-        window.timeReportsChartInstance.destroy();
-    }
-
-    // 2. Lấy container và TẠO LẠI canvas mới (Đây là bước quan trọng nhất)
-    const chartContainer = document.querySelector('.chart-container');
-    if (!chartContainer) return;
-    
-    // Xóa canvas cũ và tạo mới để đảm bảo không bị lỗi cache
-    chartContainer.innerHTML = '<canvas id="timeReportsChart"></canvas>';
-    
-    const ctx = document.getElementById('timeReportsChart');
-    if (!ctx) return;
-
-    // 3. Chuẩn bị dữ liệu mới
-    const onTimeData = [0, 0, 0, 0, 0, 0, 0];
-    const lateData = [0, 0, 0, 0, 0, 0, 0];
-
-    weeklyNotes.forEach(note => {
-        const day = note.dayOfWeek || 0;
-        if (note.isOnTime) {
-            onTimeData[day]++;
-        } else {
-            lateData[day]++;
+    function renderTimeReportsChart(weeklyNotes) {
+        // 1. Phá hủy instance chart cũ để tránh memory leak
+        if (window.timeReportsChartInstance) {
+            window.timeReportsChartInstance.destroy();
         }
-    });
 
-    const lang = translations[currentLanguage];
-    const dayLabels = [
-        lang.sunday, lang.monday, lang.tuesday, lang.wednesday,
-        lang.thursday, lang.friday, lang.saturday
-    ];
+        // 2. Lấy container và TẠO LẠI canvas mới (Đây là bước quan trọng nhất)
+        const chartContainer = document.querySelector('.chart-container');
+        if (!chartContainer) return;
 
-    // 4. Vẽ biểu đồ mới trên canvas mới
-    window.timeReportsChartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: dayLabels,
-            datasets: [
-                {
-                    label: lang.onTimeTasksText,
-                    data: onTimeData,
-                    backgroundColor: 'rgba(16, 185, 129, 0.8)',
-                    borderColor: 'rgb(16, 185, 129)',
-                    borderWidth: 1,
-                    borderRadius: 5, // Bo góc cho đẹp
-                },
-                {
-                    label: lang.lateTasksText,
-                    data: lateData,
-                    backgroundColor: 'rgba(239, 68, 68, 0.8)',
-                    borderColor: 'rgb(239, 68, 68)',
-                    borderWidth: 1,
-                    borderRadius: 5, // Bo góc
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false, // Cho phép chart co giãn tốt hơn trong modal
-            plugins: {
-                legend: {
-                    position: 'top',
-                },
-                title: {
-                    display: true,
-                    text: lang.timeReportsModalTitle,
-                    font: {
-                        size: 16
+        // Xóa canvas cũ và tạo mới để đảm bảo không bị lỗi cache
+        chartContainer.innerHTML = '<canvas id="timeReportsChart"></canvas>';
+
+        const ctx = document.getElementById('timeReportsChart');
+        if (!ctx) return;
+
+        // 3. Chuẩn bị dữ liệu mới
+        const onTimeData = [0, 0, 0, 0, 0, 0, 0];
+        const lateData = [0, 0, 0, 0, 0, 0, 0];
+
+        weeklyNotes.forEach(note => {
+            const day = note.dayOfWeek || 0;
+            if (note.isOnTime) {
+                onTimeData[day]++;
+            } else {
+                lateData[day]++;
+            }
+        });
+
+        const lang = translations[currentLanguage];
+        const dayLabels = [
+            lang.sunday, lang.monday, lang.tuesday, lang.wednesday,
+            lang.thursday, lang.friday, lang.saturday
+        ];
+
+        // 4. Vẽ biểu đồ mới trên canvas mới
+        window.timeReportsChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: dayLabels,
+                datasets: [
+                    {
+                        label: lang.onTimeTasksText,
+                        data: onTimeData,
+                        backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                        borderColor: 'rgb(16, 185, 129)',
+                        borderWidth: 1,
+                        borderRadius: 5, // Bo góc cho đẹp
+                    },
+                    {
+                        label: lang.lateTasksText,
+                        data: lateData,
+                        backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                        borderColor: 'rgb(239, 68, 68)',
+                        borderWidth: 1,
+                        borderRadius: 5, // Bo góc
                     }
-                }
+                ]
             },
-            scales: {
-                x: {
-                    stacked: true, // Chồng 2 cột lên nhau
+            options: {
+                responsive: true,
+                maintainAspectRatio: false, // Cho phép chart co giãn tốt hơn trong modal
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    title: {
+                        display: true,
+                        text: lang.timeReportsModalTitle,
+                        font: {
+                            size: 16
+                        }
+                    }
                 },
-                y: {
-                    stacked: true, // Chồng 2 cột lên nhau
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: 1 // Đảm bảo trục Y là số nguyên (1, 2, 3...)
+                scales: {
+                    x: {
+                        stacked: true, // Chồng 2 cột lên nhau
+                    },
+                    y: {
+                        stacked: true, // Chồng 2 cột lên nhau
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1 // Đảm bảo trục Y là số nguyên (1, 2, 3...)
+                        }
                     }
                 }
             }
-        }
-    });
-}
+        });
+    }
 
 
 
