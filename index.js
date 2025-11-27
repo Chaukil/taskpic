@@ -1751,7 +1751,8 @@ document.addEventListener("DOMContentLoaded", function () {
                    class="view-sub-task-checkbox" 
                    data-task-id="${task.id}"
                    data-note-id="${note.id}"
-                   ${task.completed ? 'checked' : ''}>
+                   ${task.completed ? 'checked' : ''}
+                    ${note.completed ? 'disabled' : ''}>
             <span class="view-sub-task-text">${task.text}</span>
             ${task.link ? `
                 <div class="view-sub-task-link">
@@ -1766,6 +1767,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const checkbox = item.querySelector('.view-sub-task-checkbox');
             checkbox.addEventListener('change', async (e) => {
+                if (note.completed) {
+                    e.preventDefault();
+                    e.target.checked = task.completed; // Trả lại trạng thái cũ
+                    showToast('Note đã hoàn thành — không thể chỉnh sửa sub-task!', 'warning');
+                    return;
+                }
+
                 const noteId = e.target.dataset.noteId;
                 const taskId = e.target.dataset.taskId;
                 const completed = e.target.checked;

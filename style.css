@@ -35,7 +35,7 @@ body {
 }
 
 .header h1 {
-    font-size: 2.5rem;
+    font-size: 2.2rem;
     font-weight: 700;
     color: #4f46e5;
     margin-bottom: 10px;
@@ -53,7 +53,7 @@ body {
 
 .user-dropdown {
     position: absolute;
-    top: 60px !important;
+    top: 40px !important;
     /* Điều chỉnh khoảng cách từ top */
     left: 0;
     background: white;
@@ -118,8 +118,8 @@ body {
     position: absolute;
     bottom: 2px;
     right: 2px;
-    width: 12px;
-    height: 12px;
+    width: 8px;
+    height: 8px;
     background-color: #10b981;
     /* Màu xanh online */
     border-radius: 50%;
@@ -144,8 +144,8 @@ body {
     background: rgba(255, 255, 255, 0.2);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    padding: 15px 20px;
-    border-radius: 15px;
+    padding: 8px 10px;
+    border-radius: 10px;
     box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
     border: 1px solid rgba(255, 255, 255, 0.18);
 }
@@ -207,7 +207,7 @@ body {
     display: flex;
     align-items: center;
     gap: 15px;
-    padding: 20px;
+    padding: 14px 12px;
     background: #f8f9fa;
     border-radius: 10px;
     border-left: 4px solid #4f46e5;
@@ -280,7 +280,7 @@ body {
     display: grid;
     grid-template-columns: auto 1fr auto; /* ⬅️ THAY ĐỔI: Bỏ cột icon riêng */
     gap: 15px;
-    padding: 15px;
+    padding: 8px 10px;
     background: #f9fafb;
     border-radius: 8px;
     align-items: center;
@@ -334,12 +334,6 @@ body {
     font-size: 1.1rem;
 }
 
-.time-report-item .note-info p {
-    font-size: 0.8rem;
-    color: #6b7280;
-     margin-bottom: 3px;
-}
-
 .time-report-item .time-stats {
     display: flex;
     flex-direction: column;
@@ -348,7 +342,7 @@ body {
 }
 
 .time-report-item .time-stats span {
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     font-weight: 600;
 }
 
@@ -375,8 +369,8 @@ body {
     align-items: center;
     gap: 6px;
     padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 0.8rem;
+    border-radius: 10px;
+    font-size: 0.7.5rem;
     font-weight: 600;
     background: #f3f4f6;
     color: #374151;
@@ -417,7 +411,7 @@ body {
 }
 
 .time-report-item .note-info p {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: #6b7280;
     margin-bottom: 3px;
 }
@@ -440,13 +434,13 @@ body {
 .qr-scanner-container {
     background: #1f2937;
     border-radius: 10px;
-    padding: 20px;
+    padding: 8px 10px;
     margin-bottom: 20px;
 }
 
 #qrReader {
     width: 100%;
-    border-radius: 8px;
+    border-radius: 10px;
     overflow: hidden;
 }
 
@@ -458,9 +452,10 @@ body {
 /* QR Upload Section */
 .qr-upload-section {
     text-align: center;
-    padding: 20px;
+    font-size: 0.75rem;
+    padding: 8px 10px;
     background: #f9fafb;
-    border-radius: 8px;
+    border-radius: 10px;
     border: 2px dashed #d1d5db;
     margin-bottom: 20px;
 }
@@ -506,20 +501,21 @@ body {
 
 .qr-note-info {
     background: #f9fafb;
-    padding: 20px;
-    border-radius: 8px;
+    padding: 8px 10px;
+    border-radius: 10px;
     border-left: 4px solid #7c3aed;
 }
 
 .qr-note-info h4 {
-    font-size: 1.2rem;
-    margin-bottom: 10px;
+    font-size: 1.1rem;
+    margin-bottom: 5px;
     color: #1f2937;
 }
 
 .qr-note-info p {
     color: #6b7280;
-    margin-bottom: 15px;
+    font-size: 0.7rem;
+    margin-bottom: 10px;
     white-space: pre-line;
 }
 
@@ -533,7 +529,7 @@ body {
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     color: #4b5563;
 }
 
@@ -566,11 +562,11 @@ body {
 .qr-actions button {
     flex: 1;
     max-width: 200px;
-    height: 50px;
+    height: 40px;
     /* ⬅️ THAY ĐỔI TỪ 50px XUỐNG 40px */
-    padding: 0 15px;
+    padding: 8px 10px;
     /* ⬅️ THÊM padding để text không bị sát viền */
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     /* ⬅️ GIẢM font-size một chút cho vừa */
 }
 
@@ -603,7 +599,7 @@ body {
     display: flex;
     gap: 8px;
     align-items: flex-start;
-    padding: 12px;
+    padding: 8px 10px;
     background: #f8f9fa;
     border-radius: 8px;
     border-left: 3px solid #4f46e5;
@@ -647,16 +643,16 @@ body {
     width: 100%;
     padding: 8px 10px;
     border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 0.9rem;
+    border-radius: 10px;
+    font-size: 0.8rem;
 }
 
 .sub-task-link-input {
     width: 100%;
-    padding: 6px 10px;
+    padding: 8px 10px;
     border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 0.85rem;
+    border-radius: 10px;
+    font-size: 0.8rem;
     color: #4f46e5;
 }
 
@@ -830,7 +826,8 @@ body {
     font-weight: 600;
     color: #1f2937;
     min-width: 45px;
-    text-align: right;
+    text-align: center;
+    font-size: 0.8rem;
 }
 
 /* View Sub-tasks List */
@@ -844,9 +841,9 @@ body {
     display: flex;
     gap: 10px;
     align-items: center;
-    padding: 10px 12px;
+    padding: 8px 10px;
     background: #f8f9fa;
-    border-radius: 6px;
+    border-radius: 10px;
     border-left: 3px solid #d1d5db;
 }
 
@@ -869,7 +866,7 @@ body {
 
 .view-sub-task-text {
     flex: 1;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     color: #1f2937;
 }
 
@@ -881,13 +878,13 @@ body {
     background: #e0e7ff;
     border: none;
     padding: 6px 10px;
-    border-radius: 6px;
+    border-radius: 10px;
     cursor: pointer;
     transition: all 0.2s;
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: 0.85rem;
+    font-size: 0.7rem;
 }
 
 .copy-link-btn i {
@@ -906,9 +903,9 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 12px;
-    border-radius: 8px;
-    font-size: 0.85rem;
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-size: 0.7rem;
     font-weight: 600;
     color: white;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -1226,12 +1223,12 @@ body {
 
 .search-input {
     flex: 2;
-    padding: 12px 15px;
+    padding: 8px 10px;
     border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 0.9rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
     transition: border-color 0.3s, box-shadow 0.3s;
-    height: 50px;
+    height: 40px;
 }
 
 .search-input:focus {
@@ -1254,13 +1251,13 @@ body {
 .add-btn,
 .action-btn {
     width: 100%;
-    height: 48px;
+    height: 40px;
     /* Cao hơn một chút để dễ bấm */
     border: none;
-    border-radius: 12px;
+    border-radius: 10px;
     /* Bo góc mềm mại */
     color: white;
-    font-size: 0.95rem;
+    font-size: 0.7rem;
     font-weight: 600;
     display: flex;
     align-items: center;
@@ -1571,44 +1568,36 @@ body {
     visibility: visible;
     display: inline-flex;
     ;
-    /* Ensure it takes up space */
 }
 
-/* If the note is already completed, hide the button */
 .note-card.completed .complete-btn {
     display: none;
 }
 
-/* Style for the "Mark as Incomplete" button in the view modal */
 .uncomplete-btn {
     background-color: #f59e0b;
-    /* Orange for 'Incomplete' */
     color: white;
     border: none;
-    border-radius: 8px;
-    padding: 10px 20px;
-    font-size: 1rem;
-    font-weight: 500;
+    border-radius: 10px;
+    padding: 15px 30px;
+    font-size: 0.7rem;
+    font-weight: 400;
     cursor: pointer;
     transition: background-color 0.3s;
     margin-top: 20px;
-    /* Space from other content */
     width: auto;
-    /* Allow button to size content, not full width */
     max-width: 250px;
-    /* Full width in the modal */
     box-sizing: border-box;
-    /* Include padding in width */
 }
 
 .uncomplete-btn:hover {
     background-color: #d97706;
-    /* Darker orange on hover */
 }
 
 .note-text {
     color: #666;
     margin-bottom: 15px;
+    font-size: 0.8rem;
     white-space: pre-line;
     flex-grow: 1;
     display: -webkit-box;
@@ -1637,10 +1626,10 @@ body {
 .note-tag {
     display: inline-flex;
     align-items: center;
-    padding: 6px 12px;
+    padding: 8px 10px;
     gap: 6px;
-    border-radius: 8px;
-    font-size: 0.85rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
     font-weight: 600;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1687,10 +1676,10 @@ body {
     font-size: 0.85rem;
     color: #666;
     margin-left: auto;
-    border-radius: 8px;
-    padding: 6px 12px;
+    border-radius: 10px;
+    padding: 8px 10px;
     background: rgba(0, 0, 0, 0.04);
-    font-weight: 500;
+    font-weight: 600;
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -2013,17 +2002,18 @@ body {
 .form-label {
     display: block;
     margin-bottom: 8px;
-    font-size: 0.9rem;
+    margin-top: 5px;
+    font-size: 0.7rem;
     font-weight: 500;
     color: #555;
 }
 
 .form-input {
     width: 100%;
-    padding: 12px 15px;
+    padding: 8px 10px;
     border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 0.9rem;
+    border-radius: 10px;
+    font-size: 0.8rem;
     transition: border-color 0.3s, box-shadow 0.3s;
 }
 
@@ -2035,10 +2025,10 @@ body {
 
 input[type="time"] {
     width: 100%;
-    padding: 12px 15px;
+    padding: 8px 10px;
     border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 0.9rem;
+    border-radius: 10px;
+    font-size: 0.8rem;
     transition: border-color 0.3s, box-shadow 0.3s;
 }
 
@@ -2061,11 +2051,11 @@ input[type="time"]:focus {
 .filter-select {
     flex: 1;
     min-width: 150px;
-    height: 50px;
-    padding: 12px 15px;
+    height: 40px;
+    padding: 8px 10px;
     border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 0.9rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
     background-color: white;
     cursor: pointer;
     transition: border-color 0.3s, box-shadow 0.3s;
@@ -2076,9 +2066,10 @@ input[type="time"]:focus {
 }
 
 .filter-select option {
-    padding: 10px 15px;
-    font-size: 0.9rem;
+    padding: 8px 10px;
+    font-size: 0.7rem;
     line-height: 1.5;
+    border-radius: 10px;
     background-color: white;
     color: #333;
 }
@@ -2099,17 +2090,15 @@ input[type="time"]:focus {
 
 .action-buttons-row button {
     flex: 1;
-    /* Các nút co giãn đều nhau */
-    min-width: 140px;
-    /* Chiều rộng tối thiểu để không bị nát chữ */
-    height: 50px;
+    min-width: 130px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     border: none;
-    border-radius: 8px;
-    font-weight: 500;
+    border-radius: 10px;
+    font-weight: 400;
     cursor: pointer;
     transition: transform 0.2s;
 }
@@ -2137,10 +2126,10 @@ input[type="time"]:focus {
 .tag-label {
     display: inline-flex;
     align-items: center;
-    padding: 6px 12px;
+    padding: 8px 13px;
     border-radius: 10px;
-    font-size: 0.85em;
-    font-weight: 600;
+    font-size: 0.8em;
+    font-weight: 500;
     margin-right: 8px;
     margin-bottom: 5px;
     /* Để có khoảng cách khi wrap */
@@ -2153,7 +2142,6 @@ input[type="time"]:focus {
     border: 1px solid transparent;
     /* Viền trong suốt mặc định */
 }
-
 
 .tag-radio:checked+.tag-label {
     color: white;
@@ -2176,13 +2164,13 @@ input[type="time"]:focus {
 
 .submit-btn {
     width: 100%;
-    padding: 14px;
+    padding: 8px 10px;
     background-color: #4f46e5;
     color: white;
     border: none;
     border-radius: 10px;
-    font-size: 1rem;
-    font-weight: 500;
+    font-size: 0.7rem;
+    font-weight: 400;
     justify-content: center;
     margin: 0px auto 0 350px;
     cursor: pointer;
@@ -2195,34 +2183,68 @@ input[type="time"]:focus {
     background-color: #4338ca;
 }
 
+.confirmation-icon {
+    font-size: 2.5rem !important;
+    color: #f59e0b;
+    margin-bottom: 15px;
+    /* Tạo vòng tròn nền nhạt sau icon */
+    background-color: #fffbeb;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.modal.confirmation-modal {
+    max-width: 320px !important; /* Giới hạn chiều rộng tối đa chỉ 320px */
+    width: 90% !important;       /* Trên mobile cực nhỏ thì lấy 90% */
+    border-radius: 16px !important; /* Bo góc tròn hơn cho đẹp */
+    min-height: auto !important; /* Bỏ chiều cao tối thiểu nếu có */
+}
+
+/* 2. Căn chỉnh nội dung bên trong */
 .confirmation-modal .modal-body {
-    text-align: center;
+    padding: 25px 20px !important;
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Căn giữa tất cả */
 }
 
 .confirmation-text {
-    font-size: 1.1rem;
-    margin-bottom: 25px;
+    font-size: 0.8rem !important;
+    color: #4b5563;
+    margin-bottom: 20px !important;
+    text-align: center;
+    width: 100% !important;
+    max-width: 100% !important; /* Bỏ giới hạn cũ để text tự nhiên */
 }
 
+/* 5. Thu nhỏ các nút bấm */
 .confirmation-buttons {
+    width: 100%;
     display: flex;
-    justify-content: center;
-    gap: 15px;
+    gap: 10px;
+    justify-content: space-between;
 }
 
 .confirmation-btn {
-    padding: 10px 20px;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s;
+    flex: 1; /* 2 nút chia đều chiều rộng */
+    padding: 10px 0 !important;
+    font-size: 0.8rem !important;
+    border-radius: 10px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .confirm-btn {
     background-color: #ef4444;
     color: white;
     border: none;
+    cursor: pointer;
+    border-radius: 10px;
 }
 
 .confirm-btn:hover {
@@ -2233,6 +2255,8 @@ input[type="time"]:focus {
     background-color: #e5e7eb;
     color: #333;
     border: none;
+    cursor: pointer;
+    border-radius: 10px;
 }
 
 .cancel-btn:hover {
@@ -2259,9 +2283,9 @@ input[type="time"]:focus {
 .view-content {
     background-color: #f8f9fa;
     border: 1px solid #eee;
-    padding: 12px 15px;
-    border-radius: 8px;
-    font-size: 1rem;
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-size: 0.8rem;
     color: #333;
     white-space: pre-line;
     /* Preserve line breaks */
@@ -2272,32 +2296,8 @@ input[type="time"]:focus {
 #viewNoteTag.note-tag {
     margin-top: 0;
     display: inline-flex;
-    padding: 8px 15px;
-}
-
-#viewNoteTag.tag-work {
-    background-color: #4f46e5;
-    /* Màu nền của tag-work khi được chọn */
-    color: white;
-    /* Màu chữ trắng khi được chọn */
-}
-
-#viewNoteTag.tag-personal {
-    background-color: #7c3aed;
-    /* Màu nền của tag-personal khi được chọn */
-    color: white;
-}
-
-#viewNoteTag.tag-ideas {
-    background-color: #10b981;
-    /* Màu nền của tag-ideas khi được chọn */
-    color: white;
-}
-
-#viewNoteTag.tag-reminders {
-    background-color: #f59e0b;
-    /* Màu nền của tag-reminders khi được chọn */
-    color: white;
+    padding: 8px 10px;
+    text-align: center;
 }
 
 #viewNoteStatus.view-content {
@@ -2305,14 +2305,13 @@ input[type="time"]:focus {
     /* Match background */
     border: 1px solid #eee;
     /* Match border */
-    padding: 8px 15px;
+    padding: 8px 10px;
     /* Adjust padding to look like a badge */
-    border-radius: 8px;
+    border-radius: 10px;
     font-weight: 500;
     text-align: center;
     /* Center the status text */
 }
-
 
 /* Adjust the "Chưa hoàn thành" button container in the view modal */
 #viewNoteActions.form-group {
@@ -2323,7 +2322,7 @@ input[type="time"]:focus {
     /* Vertically align button if needed */
     margin-top: 15px;
     /* Space from content above */
-    padding-top: 15px;
+    padding-top: 0px;
     /* Add padding above the button */
     border-top: 1px solid #eee;
     /* Optional: Separator line above the button */
@@ -2359,7 +2358,7 @@ input[type="time"]:focus {
 
 .add-btn i,
 .action-btn i {
-    font-size: 1.1rem;
+    font-size: 0.7rem;
 }
 
 /* NEW: Màu sắc cụ thể cho nút "Hoàn thành tất cả" */
@@ -2656,7 +2655,7 @@ input[type="time"]:focus {
 }
 
 .help-text {
-    font-size: 0.85em;
+    font-size: 0.7em;
     color: #777;
     margin-top: 5px;
 }
@@ -2673,8 +2672,8 @@ input[type="time"]:focus {
 /* Small button style */
 .action-btn.small-btn,
 .submit-btn.small-btn {
-    padding: 8px 15px;
-    font-size: 0.9em;
+    padding: 8px 10px;
+    font-size: 0.8em;
     margin-top: 10px;
 }
 
@@ -2687,7 +2686,7 @@ input[type="time"]:focus {
 .settings-btn {
     background: none;
     border: none;
-    font-size: 2rem;
+    font-size: 1.5rem;
     color: #4f46e5;
     cursor: pointer;
     transition: color 0.3s, transform 0.2s;
@@ -2715,3 +2714,28 @@ input[type="time"]:focus {
     color: #ccc;
     font-size: 0.8em;
 }
+
+/* ========================================
+   SỬA LỖI HIỂN THỊ TAGS THEO CHIỀU DỌC
+   ======================================== */
+
+/* 1. Ghi đè lại rule `width: 100%` cho các tag */
+.tags-container .tag-option {
+    width: auto !important; /* Cho phép tag co lại theo nội dung */
+    margin-bottom: 0 !important;
+}
+
+/* 2. Đảm bảo container của tag luôn là flex-row */
+#noteTagsContainer,
+#qrNoteTagsContainer {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+}
+
+/* 3. Bỏ margin-bottom của label tag để không tạo khoảng trống thừa */
+.tag-label {
+    margin-bottom: 0 !important;
+}
+
