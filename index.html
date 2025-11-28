@@ -13,10 +13,41 @@
   <div class="container">
     <div class="header-container">
       <header class="header">
-        <button id="settingsBtn" class="settings-btn">
-          <i class="fas fa-cog"></i>
-        </button>
         <h1>Châu Chí Kil</h1>
+
+        <!-- MỚI: Nhóm các nút chức năng -->
+        <div class="header-actions">
+          <!-- Nút Settings -->
+          <button id="settingsBtn" class="header-action-btn settings-btn" title="Cài đặt">
+            <i class="fas fa-cog"></i>
+          </button>
+
+          <!-- Nút User Menu -->
+          <div class="user-menu" id="userMenu">
+            <div class="user-avatar" id="userAvatar" title="Tài khoản">
+              <i class="fas fa-user-circle"></i>
+            </div>
+            <div class="user-dropdown" id="userDropdown" style="display: none;">
+              <div style="padding: 10px; border-bottom: 1px solid #eee; margin-bottom: 10px;">
+                <p style="font-weight: 600; margin-bottom: 3px;" id="userName">Loading...</p>
+                <p style="font-size: 0.85rem; color: #666;" id="userEmail">Loading...</p>
+              </div>
+              <button id="profileBtn"
+                style="width: 100%; padding: 10px; border: none; background: none; text-align: left; cursor: pointer; border-radius: 5px;">
+                <i class="fas fa-user"></i> Hồ sơ
+              </button>
+              <button id="logoutBtn"
+                style="width: 100%; padding: 10px; border: none; background: none; text-align: left; cursor: pointer; color: #ef4444; border-radius: 5px;">
+                <i class="fas fa-sign-out-alt"></i> Đăng xuất
+              </button>
+            </div>
+          </div>
+
+          <!-- Nút Reports -->
+          <button id="reportsBtn" class="header-action-btn reports-btn" title="Báo cáo">
+            <i class="fas fa-file-alt"></i> <span class="badge" id="reportsBadge">0</span>
+          </button>
+        </div>
 
         <!-- MỚI: Đồng hồ ngày giờ -->
         <div class="datetime-display" id="datetimeDisplay">
@@ -30,25 +61,45 @@
           </div>
         </div>
       </header>
+    </div>
 
-      <!-- Trong header, sau datetime-display -->
-      <div class="user-menu" id="userMenu">
-        <div class="user-avatar" id="userAvatar">
-          <i class="fas fa-user-circle" style="font-size: 1.5rem; color: #4f46e5;"></i>
+
+    <!-- Reporting Dashboard Modal -->
+    <div id="reportingDashboardModal" class="modal-overlay">
+      <div class="modal reporting-dashboard">
+        <div class="modal-header">
+          <h3 class="modal-title" id="dashboardTitle">
+            <i class="fas fa-tachometer-alt"></i> Bảng điều khiển Báo cáo
+          </h3>
+          <button id="closeDashboardBtn" class="modal-close">
+            <i class="fas fa-times"></i>
+          </button>
         </div>
-        <div class="user-dropdown" id="userDropdown" style="display: none;">
-          <div style="padding: 10px; border-bottom: 1px solid #eee; margin-bottom: 10px;">
-            <p style="font-weight: 600; margin-bottom: 3px;" id="userName">Loading...</p>
-            <p style="font-size: 0.85rem; color: #666;" id="userEmail">Loading...</p>
+        <div class="modal-body">
+          <div class="dashboard-header">
+            <p id="dashboardSummaryText">Tổng hợp hiệu suất tuần này</p>
+            <span id="dashboardDateRange"></span>
           </div>
-          <button id="profileBtn"
-            style="width: 100%; padding: 10px; border: none; background: none; text-align: left; cursor: pointer; border-radius: 5px;">
-            <i class="fas fa-user"></i> Hồ sơ
-          </button>
-          <button id="logoutBtn"
-            style="width: 100%; padding: 10px; border: none; background: none; text-align: left; cursor: pointer; color: #ef4444; border-radius: 5px;">
-            <i class="fas fa-sign-out-alt"></i> Đăng xuất
-          </button>
+
+          <div class="dashboard-section">
+            <div class="table-container">
+              <table class="dashboard-table">
+                <thead>
+                  <tr>
+                    <th id="thEmployee">Người gửi</th>
+                    <th id="thCompletionRate">Tỷ lệ hoàn thành</th>
+                    <th id="thOnTimeRate">Tỷ lệ đúng hạn</th>
+                    <th id="thAvgTime">Thời gian TB</th>
+                    <th id="thDetails">Chi tiết</th>
+                  </tr>
+                </thead>
+                <tbody id="submittedReportsTableBody">
+                  <!-- Dữ liệu sẽ được render ở đây -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -506,9 +557,25 @@
             <h4 id="detailsTitle">Chi tiết các task trong tuần</h4>
             <div id="timeReportsList"></div>
           </div>
+
+          <!-- ========================================
+           MỚI: Nút gửi báo cáo
+           ======================================== -->
+          <div class="report-actions-footer">
+            <button id="sendReportFromTimeReportsBtn" class="action-btn send-report-btn">
+              <i class="fas fa-paper-plane"></i>
+              <span>Gửi báo cáo này cho người khác</span>
+            </button>
+            <p class="help-text" style="margin-top: 10px; text-align: center;">
+              <i class="fas fa-info-circle"></i>
+              Chỉ gửi được cho người dùng đã đăng ký trong hệ thống
+            </p>
+          </div>
+
         </div>
       </div>
     </div>
+
 
     <div id="settingsModal" class="modal-overlay">
       <div class="modal">
@@ -612,7 +679,108 @@
       </div>
     </div>
 
+    <!-- Send Report Modal -->
+    <div id="sendReportModal" class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title">Gửi báo cáo</h3>
+          <button id="closeSendReportBtn" class="modal-close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <!-- Report Summary Preview -->
+          <div class="report-preview" id="reportPreview">
+            <h4>Tóm tắt báo cáo tuần này</h4>
+            <div class="summary-stats">
+              <div class="stat-item">
+                <i class="fas fa-tasks"></i>
+                <span id="previewTotal">0</span>
+                <label>Tổng task</label>
+              </div>
+              <div class="stat-item success">
+                <i class="fas fa-check-circle"></i>
+                <span id="previewCompleted">0</span>
+                <label>Hoàn thành</label>
+              </div>
+              <div class="stat-item warning">
+                <i class="fas fa-clock"></i>
+                <span id="previewOnTime">0</span>
+                <label>Đúng hạn</label>
+              </div>
+              <div class="stat-item danger">
+                <i class="fas fa-exclamation-circle"></i>
+                <span id="previewLate">0</span>
+                <label>Trễ hạn</label>
+              </div>
+            </div>
+          </div>
 
+          <!-- Send Form -->
+          <div class="form-group">
+            <label for="recipientEmail" class="form-label">
+              <i class="fas fa-envelope"></i> Email người nhận
+            </label>
+            <input type="email" id="recipientEmail" class="form-input" placeholder="manager@example.com" required />
+            <p class="help-text">
+              Chỉ gửi được cho người dùng đã đăng ký trong hệ thống
+            </p>
+          </div>
+
+          <div class="form-group">
+            <label for="reportMessage" class="form-label">
+              <i class="fas fa-comment"></i> Ghi chú (tùy chọn)
+            </label>
+            <textarea id="reportMessage" class="form-input form-textarea" rows="3"
+              placeholder="Thêm ghi chú cho người nhận..."></textarea>
+          </div>
+
+          <button id="sendReportSubmitBtn" class="submit-btn">
+            <i class="fas fa-paper-plane"></i> Gửi báo cáo
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- View Report Detail Modal -->
+    <div id="viewReportModal" class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title">Chi tiết báo cáo</h3>
+          <button id="closeViewReportBtn" class="modal-close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="report-from">
+            <strong id="reportFromLabel">Từ:</strong> <span id="reportFromName"></span> (<span
+              id="reportFromEmail"></span>)
+          </div>
+          <div class="report-date">
+            <strong id="reportDateLabel">Ngày gửi:</strong> <span id="reportDate"></span>
+          </div>
+          <div class="report-message" id="reportMessageContent" style="display: none;">
+            <strong id="reportNoteLabel">Ghi chú:</strong>
+            <p id="reportMessageText"></p>
+          </div>
+
+          <hr style="margin: 20px 0;">
+
+          <!-- Report Stats -->
+          <div id="reportDetailStats"></div>
+
+          <!-- Report Actions -->
+          <div class="report-actions">
+            <button id="deleteReportBtn" class="submit-btn" style="background: #ef4444;">
+              <i class="fas fa-trash"></i> Xóa báo cáo
+            </button>
+            <button id="markAsReadBtn" class="submit-btn" style="background: #10b981;">
+              <i class="fas fa-check"></i> Đánh dấu đã đọc
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
   </div>
 

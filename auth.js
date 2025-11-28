@@ -125,6 +125,7 @@ registerForm.addEventListener('submit', async (e) => {
         await db.collection('users').doc(user.uid).set({
             name: name,
             email: email,
+            email_lowercase: email.toLowerCase(),
             photoURL: null,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             settings: {
@@ -174,6 +175,7 @@ document.getElementById('googleLogin').addEventListener('click', async () => {
             await db.collection('users').doc(user.uid).set({
                 name: user.displayName || 'User',
                 email: user.email,
+                 email_lowercase: user.email.toLowerCase(),
                 photoURL: user.photoURL || null,
                 provider: 'google',
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
