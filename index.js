@@ -181,21 +181,21 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function updateUserMenu() {
-    if (currentUser) {
-        if (userName) userName.textContent = currentUser.displayName || 'User';
-        if (userEmail) userEmail.textContent = currentUser.email;
-        if (userAvatar && currentUser.photoURL) {
-            userAvatar.innerHTML = `
+        if (currentUser) {
+            if (userName) userName.textContent = currentUser.displayName || 'User';
+            if (userEmail) userEmail.textContent = currentUser.email;
+            if (userAvatar && currentUser.photoURL) {
+                userAvatar.innerHTML = `
                 <img src="${currentUser.photoURL}" 
                      alt="Avatar" 
                      style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; cursor: pointer;">
             `;
+            }
+
+            // ✅ THÊM DÒNG NÀY: Hiện nút báo cáo ngay lập tức khi có user
+            if (reportsMenu) reportsMenu.style.display = 'block';
         }
-        
-        // ✅ THÊM DÒNG NÀY: Hiện nút báo cáo ngay lập tức khi có user
-        if (reportsMenu) reportsMenu.style.display = 'block';
     }
-}
 
     async function loadUserSettingsFromFirestore() {
         if (!currentUser) return;
@@ -280,95 +280,95 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // index.js
 
-async function handleNoteSubmit(e) {
-    e.preventDefault();
+    async function handleNoteSubmit(e) {
+        e.preventDefault();
 
-    const submitBtn = document.getElementById("submitNoteBtn");
-    const originalText = submitBtn.textContent;
-    
-    // Hiệu ứng loading
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Đang lưu...`;
+        const submitBtn = document.getElementById("submitNoteBtn");
+        const originalText = submitBtn.textContent;
 
-    const title = document.getElementById("noteTitle").value;
-    const content = document.getElementById("noteContent").value;
-    const time = document.getElementById("noteTime").value;
-    const dayOfWeek = parseInt(document.getElementById("noteDayOfWeek").value);
-    const expectedDuration = parseInt(document.getElementById("expectedDuration").value) || 30;
-    const selectedTagRadio = document.querySelector('input[name="noteTag"]:checked');
+        // Hiệu ứng loading
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Đang lưu...`;
 
-    const subTasks = getSubTasksFromForm();
+        const title = document.getElementById("noteTitle").value;
+        const content = document.getElementById("noteContent").value;
+        const time = document.getElementById("noteTime").value;
+        const dayOfWeek = parseInt(document.getElementById("noteDayOfWeek").value);
+        const expectedDuration = parseInt(document.getElementById("expectedDuration").value) || 30;
+        const selectedTagRadio = document.querySelector('input[name="noteTag"]:checked');
 
-    let tagId = null;
-    if (selectedTagRadio) {
-        tagId = selectedTagRadio.value;
-    } else if (tags.length > 0) {
-        tagId = tags[0].id;
-    } else {
-        showToast('toastNoTagDefined', 'warning');
-        submitBtn.disabled = false;
-        submitBtn.textContent = originalText;
-        return;
-    }
+        const subTasks = getSubTasksFromForm();
 
-    try {
-        if (editingNoteKey) {
-            // === CHẾ ĐỘ SỬA: GIỮ NGUYÊN TRẠNG THÁI ===
-            
-            // 1. Lấy dữ liệu note hiện tại để không bị mất các trường quan trọng
-            const currentNote = notes.find(n => n.id === editingNoteKey);
-            
-            const updatedData = {
-                title,
-                content,
-                tag: tagId,
-                time,
-                dayOfWeek,
-                expectedDuration,
-                subTasks,
-                // ✅ QUAN TRỌNG: Giữ nguyên các trường trạng thái từ note cũ
-                completed: currentNote.completed || false,
-                actualDuration: currentNote.actualDuration || null,
-                startTime: currentNote.startTime || null,
-                endTime: currentNote.endTime || null,
-                isOnTime: currentNote.isOnTime // Có thể là true/false/null
-            };
-
-            await db.collection('notes').doc(editingNoteKey).update(updatedData);
-            showToast('toastNoteUpdated', 'success');
-            
+        let tagId = null;
+        if (selectedTagRadio) {
+            tagId = selectedTagRadio.value;
+        } else if (tags.length > 0) {
+            tagId = tags[0].id;
         } else {
-            // === CHẾ ĐỘ THÊM MỚI ===
-            const newNoteData = {
-                userId: currentUser.uid,
-                title,
-                content,
-                tag: tagId,
-                time,
-                dayOfWeek,
-                expectedDuration,
-                subTasks,
-                actualDuration: null,
-                startTime: null,
-                endTime: null,
-                isOnTime: null,
-                completed: false
-            };
-            
-            await db.collection('notes').add(newNoteData);
-            showToast('toastNoteSaved', 'success');
+            showToast('toastNoTagDefined', 'warning');
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+            return;
         }
-        
-        closeAddNoteModal();
-        
-    } catch (error) {
-        console.error("Error saving note: ", error);
-        showToast('toastErrorSavingNote', 'error');
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = originalText;
+
+        try {
+            if (editingNoteKey) {
+                // === CHẾ ĐỘ SỬA: GIỮ NGUYÊN TRẠNG THÁI ===
+
+                // 1. Lấy dữ liệu note hiện tại để không bị mất các trường quan trọng
+                const currentNote = notes.find(n => n.id === editingNoteKey);
+
+                const updatedData = {
+                    title,
+                    content,
+                    tag: tagId,
+                    time,
+                    dayOfWeek,
+                    expectedDuration,
+                    subTasks,
+                    // ✅ QUAN TRỌNG: Giữ nguyên các trường trạng thái từ note cũ
+                    completed: currentNote.completed || false,
+                    actualDuration: currentNote.actualDuration || null,
+                    startTime: currentNote.startTime || null,
+                    endTime: currentNote.endTime || null,
+                    isOnTime: currentNote.isOnTime // Có thể là true/false/null
+                };
+
+                await db.collection('notes').doc(editingNoteKey).update(updatedData);
+                showToast('toastNoteUpdated', 'success');
+
+            } else {
+                // === CHẾ ĐỘ THÊM MỚI ===
+                const newNoteData = {
+                    userId: currentUser.uid,
+                    title,
+                    content,
+                    tag: tagId,
+                    time,
+                    dayOfWeek,
+                    expectedDuration,
+                    subTasks,
+                    actualDuration: null,
+                    startTime: null,
+                    endTime: null,
+                    isOnTime: null,
+                    completed: false
+                };
+
+                await db.collection('notes').add(newNoteData);
+                showToast('toastNoteSaved', 'success');
+            }
+
+            closeAddNoteModal();
+
+        } catch (error) {
+            console.error("Error saving note: ", error);
+            showToast('toastErrorSavingNote', 'error');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
     }
-}
 
 
     // === Cập nhật hàm handleAddOrUpdateTag để thêm userId ===
@@ -3987,43 +3987,47 @@ async function handleNoteSubmit(e) {
     /* ==========================================
    REPORTS MANAGEMENT FUNCTIONS
    ========================================== */
+    function loadReceivedReports() {
+        if (!currentUser) return;
 
-    // index.js
+        db.collection('reports')
+            .where('toUserId', '==', currentUser.uid)
+            .orderBy('createdAt', 'desc')
+            .onSnapshot((snapshot) => {
+                receivedReports = [];
+                snapshot.forEach((doc) => {
+                    const report = doc.data();
+                    report.id = doc.id;
+                    receivedReports.push(report);
+                });
 
-function loadReceivedReports() {
-    if (!currentUser) return;
+                // ✅ CẬP NHẬT BADGE NGAY LẬP TỨC
+                const unreadCount = receivedReports.filter(r => r.status === 'unread').length;
 
-    db.collection('reports')
-        .where('toUserId', '==', currentUser.uid)
-        .orderBy('createdAt', 'desc')
-        .onSnapshot((snapshot) => {
-            receivedReports = [];
-            snapshot.forEach((doc) => {
-                const report = doc.data();
-                report.id = doc.id;
-                receivedReports.push(report);
+                if (reportsBadge) {
+                    reportsBadge.textContent = unreadCount;
+                    reportsBadge.style.display = unreadCount > 0 ? 'flex' : 'none';
+                }
+
+                // ✅ NẾU DASHBOARD ĐANG MỞ → TỰ ĐỘNG RENDER LẠI
+                if (reportingDashboardModal.classList.contains('active')) {
+                    const now = new Date();
+                    const startOfWeek = new Date(now);
+                    startOfWeek.setDate(now.getDate() - now.getDay());
+                    startOfWeek.setHours(0, 0, 0, 0);
+
+                    const weeklyReports = receivedReports.filter(report => {
+                        const reportDate = report.createdAt?.toDate?.();
+                        return reportDate && reportDate >= startOfWeek;
+                    });
+
+                    renderSubmittedReportsTable(weeklyReports);
+                }
+
+            }, (error) => {
+                console.error("Error loading reports:", error);
             });
-
-            // ✅ LOGIC MỚI: CHỈ CẬP NHẬT BADGE (SỐ LƯỢNG)
-            // Không can thiệp vào việc ẩn hiện nút reportsMenu nữa vì nó đã hiện sẵn rồi
-            const unreadCount = receivedReports.filter(r => r.status === 'unread').length;
-
-            if (reportsBadge) {
-                reportsBadge.textContent = unreadCount;
-                // Chỉ hiện chấm đỏ nếu có tin chưa đọc
-                reportsBadge.style.display = unreadCount > 0 ? 'flex' : 'none';
-            }
-            
-            // Nếu đang mở dashboard thì render lại để cập nhật dữ liệu mới nhất (real-time)
-            if (reportingDashboardModal.classList.contains('active')) {
-                 renderSubmittedReportsTable(receivedReports);
-            }
-
-        }, (error) => {
-            console.error("Error loading reports:", error);
-        });
-}
-
+    }
 
     function formatReportDate(date) {
         const lang = translations[currentLanguage]; // ⬅️ THÊM DÒNG NÀY
@@ -4218,9 +4222,6 @@ function loadReceivedReports() {
         }
     }
 
-    // index.js
-
-    // THAY THẾ TOÀN BỘ HÀM NÀY
     async function openReportingDashboard() {
         const lang = translations[currentLanguage];
         reportingDashboardModal.classList.add('active');
@@ -4229,43 +4230,22 @@ function loadReceivedReports() {
         // Hiển thị loading ban đầu
         submittedReportsTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center;">${lang.loadingData}</td></tr>`;
 
-        try {
-            // Lấy tất cả báo cáo đã gửi cho người dùng hiện tại
-            const reportsSnapshot = await db.collection('reports')
-                .where('toUserId', '==', currentUser.uid)
-                .orderBy('createdAt', 'desc')
-                .get();
+        // ✅ KHÔNG CẦN FETCH NỮA - Dữ liệu đã có sẵn từ onSnapshot
+        const now = new Date();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        startOfWeek.setHours(0, 0, 0, 0);
 
-            const allReceivedReports = [];
-            reportsSnapshot.forEach(doc => {
-                const report = doc.data();
-                report.id = doc.id;
-                allReceivedReports.push(report);
-            });
+        // Lọc các báo cáo trong tuần này
+        const weeklyReports = receivedReports.filter(report => {
+            const reportDate = report.createdAt?.toDate?.();
+            return reportDate && reportDate >= startOfWeek;
+        });
 
-            // Lọc các báo cáo trong tuần này
-            const now = new Date();
-            const startOfWeek = new Date(now);
-            startOfWeek.setDate(now.getDate() - now.getDay());
-            startOfWeek.setHours(0, 0, 0, 0);
-
-            const weeklyReports = allReceivedReports.filter(report => {
-                const reportDate = report.createdAt?.toDate?.();
-                return reportDate && reportDate >= startOfWeek;
-            });
-
-            // Render bảng chỉ với các báo cáo trong tuần
-            renderSubmittedReportsTable(weeklyReports);
-
-        } catch (error) {
-            console.error("Error opening reporting dashboard:", error);
-            submittedReportsTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center;">${lang.errorSendingReport}</td></tr>`;
-        }
+        // Render bảng
+        renderSubmittedReportsTable(weeklyReports);
     }
 
-    // index.js
-
-    // THAY THẾ TOÀN BỘ HÀM NÀY
     function renderSubmittedReportsTable(reportsToRender) {
         submittedReportsTableBody.innerHTML = '';
         const lang = translations[currentLanguage];
@@ -4308,6 +4288,7 @@ function loadReceivedReports() {
             submittedReportsTableBody.appendChild(row);
         });
     }
+
 
     // Đóng Dashboard
     function closeReportingDashboard() {
@@ -4451,18 +4432,26 @@ function loadReceivedReports() {
     }
 
     async function markReportAsRead() {
-        const lang = translations[currentLanguage]; // ⬅️ THÊM
-        if (!currentViewingReport) return;
+    const lang = translations[currentLanguage];
+    if (!currentViewingReport) return;
 
-        try {
-            await db.collection('reports').doc(currentViewingReport.id).update({
-                status: 'read'
-            });
-            showToast(lang.markedAsRead, 'info');
-        } catch (error) {
-            console.error('Error marking as read:', error);
+    try {
+        await db.collection('reports').doc(currentViewingReport.id).update({
+            status: 'read'
+        });
+        
+        // ✅ CẬP NHẬT LOCAL NGAY (Optional - onSnapshot sẽ tự cập nhật)
+        const index = receivedReports.findIndex(r => r.id === currentViewingReport.id);
+        if (index !== -1) {
+            receivedReports[index].status = 'read';
         }
+        
+        showToast(lang.markedAsRead, 'info');
+    } catch (error) {
+        console.error('Error marking as read:', error);
     }
+}
+
 
     // Toggle reports dropdown
     if (reportsBtn) {
