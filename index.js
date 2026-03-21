@@ -1990,44 +1990,56 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function renderViewSubTasks(note) {
-        const group = document.getElementById('viewSubTasksGroup');
-        const list = document.getElementById('viewSubTasksList');
-        const progressFill = document.getElementById('viewProgressFill');
-        const progressText = document.getElementById('viewProgressText');
-        const lang = translations[currentLanguage];
+    const group = document.getElementById('viewSubTasksGroup');
+    const list = document.getElementById('viewSubTasksList');
+    const progressFill = document.getElementById('viewProgressFill');
+    const progressText = document.getElementById('viewProgressText');
+    const lang = translations[currentLanguage];
 
-        if (!note.subTasks || note.subTasks.length === 0) {
-            group.style.display = 'none';
-            return;
-        }
+    if (!note.subTasks || note.subTasks.length === 0) {
+        group.style.display = 'none';
+        return;
+    }
 
-        group.style.display = 'block';
-        list.innerHTML = '';
+    group.style.display = 'block';
+    list.innerHTML = '';
 
-        const progress = calculateProgress(note.subTasks);
-        progressFill.style.width = `${progress}%`;
-        progressText.textContent = `${progress}%`;
+    const progress = calculateProgress(note.subTasks);
+    progressFill.style.width = `${progress}%`;
+    
+    // ⬅️ THAY ĐỔI: Hiển thị % TRONG thanh progress
+    progressFill.textContent = `${progress}%`;
+    
+    // ⬅️ Ẩn progressText (hoặc xóa hẳn element trong HTML)
+    if (progressText) {
+        progressText.style.display = 'none';
+    }
 
-        // **MỚI: Thêm data attribute để CSS áp dụng màu**
-        if (progress <= 33) {
-            progressFill.setAttribute('data-progress', 'low');
-        } else if (progress <= 66) {
-            progressFill.setAttribute('data-progress', 'medium');
-        } else {
-            progressFill.setAttribute('data-progress', 'high');
-        }
+    // ⬅️ Thêm data attribute để CSS áp dụng màu
+    if (progress === 0) {
+        progressFill.setAttribute('data-progress', '0');
+    } else if (progress <= 33) {
+        progressFill.setAttribute('data-progress', 'low');
+    } else if (progress <= 66) {
+        progressFill.setAttribute('data-progress', 'medium');
+    } else if (progress < 100) {
+        progressFill.setAttribute('data-progress', 'high');
+    } else {
+        progressFill.setAttribute('data-progress', 'complete');
+    }
 
-        note.subTasks.forEach(task => {
-            const item = document.createElement('div');
-            item.className = `view-sub-task-item ${task.completed ? 'completed' : ''}`;
+    // ⬅️ Phần render danh sách sub-tasks (GIỮ NGUYÊN)
+    note.subTasks.forEach(task => {
+        const item = document.createElement('div');
+        item.className = `view-sub-task-item ${task.completed ? 'completed' : ''}`;
 
-            item.innerHTML = `
+        item.innerHTML = `
             <input type="checkbox" 
                    class="view-sub-task-checkbox" 
                    data-task-id="${task.id}"
                    data-note-id="${note.id}"
                    ${task.completed ? 'checked' : ''}
-                    ${note.completed ? 'disabled' : ''}>
+                   ${note.completed ? 'disabled' : ''}>
             <span class="view-sub-task-text">${task.text}</span>
             ${task.link ? `
                 <div class="view-sub-task-link">
@@ -2038,86 +2050,100 @@ document.addEventListener("DOMContentLoaded", function () {
             ` : ''}
         `;
 
-            list.appendChild(item);
+        list.appendChild(item);
 
-            const checkbox = item.querySelector('.view-sub-task-checkbox');
-            checkbox.addEventListener('change', async (e) => {
-                if (note.completed) {
-                    e.preventDefault();
-                    e.target.checked = task.completed; // Trả lại trạng thái cũ
-                    showToast('Note đã hoàn thành — không thể chỉnh sửa sub-task!', 'warning');
-                    return;
-                }
-
-                const noteId = e.target.dataset.noteId;
-                const taskId = e.target.dataset.taskId;
-                const completed = e.target.checked;
-
-                await updateSubTaskStatus(noteId, taskId, completed);
-            });
-
-            if (task.link) {
-                const copyBtn = item.querySelector('.copy-link-btn');
-                copyBtn.addEventListener('click', () => {
-                    navigator.clipboard.writeText(task.link)
-                        .then(() => showToast(lang.linkCopied, 'success'))
-                        .catch(() => showToast(lang.linkCopyFailed, 'error'));
-                });
+        const checkbox = item.querySelector('.view-sub-task-checkbox');
+        checkbox.addEventListener('change', async (e) => {
+            if (note.completed) {
+                e.preventDefault();
+                e.target.checked = task.completed;
+                showToast('Note đã hoàn thành — không thể chỉnh sửa sub-task!', 'warning');
+                return;
             }
+
+            const noteId = e.target.dataset.noteId;
+            const taskId = e.target.dataset.taskId;
+            const completed = e.target.checked;
+
+            await updateSubTaskStatus(noteId, taskId, completed);
         });
-    }
 
-    async function updateSubTaskStatus(noteId, taskId, completed) {
-        const lang = translations[currentLanguage];
+        if (task.link) {
+            const copyBtn = item.querySelector('.copy-link-btn');
+            copyBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(task.link)
+                    .then(() => showToast(lang.linkCopied, 'success'))
+                    .catch(() => showToast(lang.linkCopyFailed, 'error'));
+            });
+        }
+    });
+}
 
-        try {
-            const noteRef = db.collection('notes').doc(noteId);
-            const noteDoc = await noteRef.get();
-            const noteData = noteDoc.data();
+async function updateSubTaskStatus(noteId, taskId, completed) {
+    const lang = translations[currentLanguage];
 
-            const updatedSubTasks = noteData.subTasks.map(task =>
-                task.id === taskId ? { ...task, completed } : task
-            );
+    try {
+        const noteRef = db.collection('notes').doc(noteId);
+        const noteDoc = await noteRef.get();
+        const noteData = noteDoc.data();
 
-            await noteRef.update({ subTasks: updatedSubTasks });
+        // ⬅️ Cập nhật trạng thái completed của sub-task
+        const updatedSubTasks = noteData.subTasks.map(task =>
+            task.id === taskId ? { ...task, completed } : task
+        );
 
-            // Cập nhật progress
-            const progress = calculateProgress(updatedSubTasks);
-            const progressFill = document.getElementById('viewProgressFill');
-            const progressText = document.getElementById('viewProgressText');
+        await noteRef.update({ subTasks: updatedSubTasks });
 
+        // ⬅️ Tính toán lại tiến độ
+        const progress = calculateProgress(updatedSubTasks);
+        const progressFill = document.getElementById('viewProgressFill');
+        const progressText = document.getElementById('viewProgressText');
+
+        // ⬅️ CẬP NHẬT WIDTH VÀ % TEXT TRONG THANH
+        if (progressFill) {
             progressFill.style.width = `${progress}%`;
-            progressText.textContent = `${progress}%`;
+            progressFill.textContent = `${progress}%`; // ⬅️ QUAN TRỌNG: Cập nhật text
+        }
 
-            // **MỚI: Cập nhật màu progress bar**
-            if (progress <= 33) {
+        // ⬅️ Ẩn progressText nếu tồn tại (vì % đã nằm trong thanh)
+        if (progressText) {
+            progressText.style.display = 'none';
+        }
+
+        // ⬅️ CẬP NHẬT MÀU SẮC THEO TIẾN ĐỘ
+        if (progressFill) {
+            if (progress === 0) {
+                progressFill.setAttribute('data-progress', '0');
+            } else if (progress <= 33) {
                 progressFill.setAttribute('data-progress', 'low');
             } else if (progress <= 66) {
                 progressFill.setAttribute('data-progress', 'medium');
-            } else {
+            } else if (progress < 100) {
                 progressFill.setAttribute('data-progress', 'high');
+            } else {
+                progressFill.setAttribute('data-progress', 'complete');
             }
+        }
 
-            // Cập nhật class cho sub-task item
-            const checkbox = document.querySelector(`[data-task-id="${taskId}"][data-note-id="${noteId}"]`);
-            if (checkbox) {
-                const subTaskItem = checkbox.closest('.view-sub-task-item');
-                if (subTaskItem) {
-                    if (completed) {
-                        subTaskItem.classList.add('completed');
-                    } else {
-                        subTaskItem.classList.remove('completed');
-                    }
+        // ⬅️ Cập nhật class cho sub-task item (gạch ngang + nền xanh khi completed)
+        const checkbox = document.querySelector(`[data-task-id="${taskId}"][data-note-id="${noteId}"]`);
+        if (checkbox) {
+            const subTaskItem = checkbox.closest('.view-sub-task-item');
+            if (subTaskItem) {
+                if (completed) {
+                    subTaskItem.classList.add('completed');
+                } else {
+                    subTaskItem.classList.remove('completed');
                 }
             }
-
-            showToast(lang.subTaskUpdated, 'success');
-        } catch (error) {
-            console.error('Error updating sub-task:', error);
-            showToast(lang.subTaskUpdateError, 'error');
         }
-    }
 
+        showToast(lang.subTaskUpdated, 'success');
+    } catch (error) {
+        console.error('Error updating sub-task:', error);
+        showToast(lang.subTaskUpdateError, 'error');
+    }
+}
 
     function setDefaultTime() {
         const now = new Date();

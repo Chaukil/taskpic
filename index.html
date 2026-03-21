@@ -15,39 +15,39 @@
       <header class="header">
         <h1>Châu Chí Kil</h1>
 
-<div class="header-actions">
-    <!-- Nút Settings -->
-    <button id="settingsBtn" class="header-action-btn settings-btn" title="Cài đặt">
-        <i class="fas fa-cog"></i>
-    </button>
+        <div class="header-actions">
+          <!-- Nút Settings -->
+          <button id="settingsBtn" class="header-action-btn settings-btn" title="Cài đặt">
+            <i class="fas fa-cog"></i>
+          </button>
 
-    <!-- ✅ User Menu - PHẢI CÓ class="user-menu" -->
-    <div class="user-menu" id="userMenu">
-        <div class="user-avatar" id="userAvatar" title="Tài khoản">
-            <i class="fas fa-user-circle"></i>
-        </div>
-        
-        <!-- ✅ Dropdown PHẢI NẰM TRONG .user-menu -->
-        <div class="user-dropdown" id="userDropdown" style="display: none;">
-            <div style="padding: 10px; border-bottom: 1px solid #eee; margin-bottom: 10px;">
+          <!-- ✅ User Menu - PHẢI CÓ class="user-menu" -->
+          <div class="user-menu" id="userMenu">
+            <div class="user-avatar" id="userAvatar" title="Tài khoản">
+              <i class="fas fa-user-circle"></i>
+            </div>
+
+            <!-- ✅ Dropdown PHẢI NẰM TRONG .user-menu -->
+            <div class="user-dropdown" id="userDropdown" style="display: none;">
+              <div style="padding: 10px; border-bottom: 1px solid #eee; margin-bottom: 10px;">
                 <p style="font-weight: 600; margin-bottom: 3px;" id="userName">Loading...</p>
                 <p style="font-size: 0.85rem; color: #666;" id="userEmail">Loading...</p>
-            </div>
-            <button id="profileBtn">
+              </div>
+              <button id="profileBtn">
                 <i class="fas fa-user"></i> Hồ sơ
-            </button>
-            <button id="logoutBtn">
+              </button>
+              <button id="logoutBtn">
                 <i class="fas fa-sign-out-alt"></i> Đăng xuất
-            </button>
-        </div>
-    </div>
+              </button>
+            </div>
+          </div>
 
-    <!-- Nút Reports -->
-    <button id="reportsBtn" class="header-action-btn reports-btn" title="Báo cáo">
-        <i class="fas fa-file-alt"></i> 
-        <span class="badge" id="reportsBadge">0</span>
-    </button>
-</div>
+          <!-- Nút Reports -->
+          <button id="reportsBtn" class="header-action-btn reports-btn" title="Báo cáo">
+            <i class="fas fa-file-alt"></i>
+            <span class="badge" id="reportsBadge">0</span>
+          </button>
+        </div>
 
 
         <!-- MỚI: Đồng hồ ngày giờ -->
@@ -250,20 +250,19 @@
         </div>
         <div class="modal-body">
           <div class="view-meta-row">
-            <div class="meta-item">
-              <label class="form-label">Thẻ:</label>
+            <div class="form-group">
+              <label for="viewNoteTag" class="form-label">Thẻ</label>
               <span id="viewNoteTag" class="view-content note-tag"></span>
             </div>
-            <div class="meta-item">
-              <label class="form-label">Trạng thái:</label>
+            <div class="form-group">
+              <label for="viewNoteStatus" class="form-label">Trạng thái</label>
               <span id="viewNoteStatus" class="view-content"></span>
             </div>
-            <div class="meta-item">
-              <label class="form-label">Thời gian:</label>
+            <div class="form-group">
+              <label for="viewNoteTime" class="form-label">Thời gian</label>
               <p id="viewNoteTime" class="view-content"></p>
             </div>
           </div>
-
           <div class="form-group">
             <label class="form-label">Nội dung:</label>
             <p id="viewNoteContent" class="view-content"></p>
