@@ -2131,7 +2131,7 @@ document.addEventListener("DOMContentLoaded", function () {
         document.body.style.overflow = "hidden";
         noteForm.reset();
 
-        // **MỚI: Clear sub-tasks container**
+        // ✅ Clear sub-tasks container
         const subTasksContainer = document.getElementById('subTasksContainer');
         subTasksContainer.innerHTML = '';
 
@@ -2148,12 +2148,11 @@ document.addEventListener("DOMContentLoaded", function () {
             noteDayOfWeekSelect.value = note.dayOfWeek || new Date().getDay();
             document.getElementById("expectedDuration").value = note.expectedDuration || 30;
 
-            // **MỚI: Load sub-tasks hoặc tạo 1 sub-task trống**
+            // ✅ Load sub-tasks (nếu có) hoặc tạo 1 task trống
             if (note.subTasks && note.subTasks.length > 0) {
                 note.subTasks.forEach(task => addSubTaskInput(task));
             } else {
-                // Nếu không có sub-tasks, tạo 1 sub-task trống
-                addSubTaskInput();
+                addSubTaskInput(); // ✅ Chỉ tạo 1 task nếu note không có sub-tasks
             }
 
             renderTagOptions(note.tag);
@@ -2166,17 +2165,19 @@ document.addEventListener("DOMContentLoaded", function () {
             setDefaultTime();
             noteDayOfWeekSelect.value = new Date().getDay();
 
-            // **MỚI: Tạo 1 sub-task trống mặc định**
+            // ✅ CHỈ TẠO 1 SUB-TASK TRỐNG MẶC ĐỊNH KHI MỞ MODAL
             addSubTaskInput();
 
             renderTagOptions();
             editingNoteKey = null;
         }
 
+        // ✅ Focus vào Title sau khi render xong
         setTimeout(() => {
             document.getElementById("noteTitle").focus();
         }, 200);
     }
+
 
     function closeAddNoteModal() {
         addNoteModal.classList.remove("active");
@@ -3950,21 +3951,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }, duration);
     }
 
-    window.addEventListener('resize', function () {
-        // Chỉ cập nhật nếu chưa có setting được lưu
-        if (!localStorage.getItem('noteColumns')) {
-            let defaultColumns;
-            if (window.innerWidth >= 1024) {
-                defaultColumns = 3;
-            } else if (window.innerWidth >= 768) {
-                defaultColumns = 2;
-            } else {
-                defaultColumns = 1;
-            }
-            document.documentElement.style.setProperty('--notes-grid-columns', defaultColumns);
-        }
-    });
-
     firebase.auth().onAuthStateChanged((user) => {
         if (user) {
             // Update user info
@@ -4416,13 +4402,17 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     async function deleteReport() {
-        const lang = translations[currentLanguage]; // ⬅️ THÊM
+        const lang = translations[currentLanguage];
         if (!currentViewingReport) return;
 
         if (!confirm(lang.confirmDeleteReport)) return;
 
         try {
             await db.collection('reports').doc(currentViewingReport.id).delete();
+
+            // ✅ XÓA LOCAL NGAY (Optional - onSnapshot sẽ tự cập nhật)
+            receivedReports = receivedReports.filter(r => r.id !== currentViewingReport.id);
+
             showToast(lang.reportDeleted, 'success');
             closeViewReportModal();
         } catch (error) {
@@ -4431,26 +4421,27 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    async function markReportAsRead() {
-    const lang = translations[currentLanguage];
-    if (!currentViewingReport) return;
 
-    try {
-        await db.collection('reports').doc(currentViewingReport.id).update({
-            status: 'read'
-        });
-        
-        // ✅ CẬP NHẬT LOCAL NGAY (Optional - onSnapshot sẽ tự cập nhật)
-        const index = receivedReports.findIndex(r => r.id === currentViewingReport.id);
-        if (index !== -1) {
-            receivedReports[index].status = 'read';
+    async function markReportAsRead() {
+        const lang = translations[currentLanguage];
+        if (!currentViewingReport) return;
+
+        try {
+            await db.collection('reports').doc(currentViewingReport.id).update({
+                status: 'read'
+            });
+
+            // ✅ CẬP NHẬT LOCAL NGAY (Optional - onSnapshot sẽ tự cập nhật)
+            const index = receivedReports.findIndex(r => r.id === currentViewingReport.id);
+            if (index !== -1) {
+                receivedReports[index].status = 'read';
+            }
+
+            showToast(lang.markedAsRead, 'info');
+        } catch (error) {
+            console.error('Error marking as read:', error);
         }
-        
-        showToast(lang.markedAsRead, 'info');
-    } catch (error) {
-        console.error('Error marking as read:', error);
     }
-}
 
 
     // Toggle reports dropdown

@@ -9,9 +9,13 @@
 
 :root {
     --body-bg-color: #f8f9fa;
-    /* Màu nền mặc định */
-    --notes-grid-columns: 1;
-    /* Mặc định 1 cột cho màn hình nhỏ */
+    --notes-grid-columns: 3;
+
+    /* Font sizes chuẩn hóa */
+    --fs-text: 0.75rem;
+    --fs-btn: 0.8rem;
+    --fs-input: 0.75rem;
+    --fs-title: 1.1rem;
 }
 
 body {
@@ -19,13 +23,13 @@ body {
     color: #333;
     line-height: 1.6;
     padding: 10px;
-    font-size: 0.9rem;
+    font-size: var(--fs-text);
 }
 
 .container {
-    max-width: 1300px;
+    max-width: 1400px;
     margin: 0 auto;
-    padding: 0 0px;
+    padding: 0 10px;
 }
 
 .header {
@@ -36,10 +40,11 @@ body {
 }
 
 .header h1 {
-    font-size: 2.2rem;
+    font-size: 2rem;
     font-weight: 700;
     color: #4f46e5;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
+    text-align: center;
 }
 
 .header p {
@@ -49,58 +54,12 @@ body {
 
 .header-container {
     position: relative;
-    margin-bottom: 40px;
-}
-
-.user-dropdown {
-    position: absolute;
-    top: 40px !important;
-    /* Điều chỉnh khoảng cách từ top */
-    left: 0;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-    padding: 10px;
-    min-width: 220px;
-
-    /* QUAN TRỌNG: Z-index cao nhất để đè lên mọi thứ */
-    z-index: 99999 !important;
-
-    /* Animation xuất hiện */
-    animation: fadeInDown 0.2s ease-out;
-    border: 1px solid #f0f0f0;
-}
-
-/* Mũi tên nhỏ chỉ lên trên (trang trí) */
-.user-dropdown::before {
-    content: '';
-    position: absolute;
-    top: -6px;
-    left: 20px;
-    width: 12px;
-    height: 12px;
-    background: white;
-    transform: rotate(45deg);
-    border-top: 1px solid #f0f0f0;
-    border-left: 1px solid #f0f0f0;
-}
-
-@keyframes fadeInDown {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Hover effect cho các item trong dropdown */
-.user-dropdown button:hover {
-    background-color: #f3f4f6 !important;
-    color: #4f46e5 !important;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding-top: 10px;
 }
 
 /* ========================================
@@ -153,7 +112,7 @@ body {
 
 .datetime-display {
     position: absolute;
-    top: 3px;
+    top: -5px;
     right: 10px;
     display: flex;
     flex-direction: column;
@@ -194,11 +153,11 @@ body {
 }
 
 .controls {
-    background-color: white;
+    background: white;
     border-radius: 12px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-    padding: 10px;
-    margin-bottom: 30px;
+    padding: 15px;
+    margin-bottom: 25px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
 }
 
 .controls-container {
@@ -1105,15 +1064,27 @@ body {
         flex: none;
     }
 
-    .action-buttons-row button {
-        flex: 1 1 calc(50% - 10px);
-        /* Trên mobile hiển thị 2 nút 1 hàng */
-        width: auto;
+    .action-buttons-row {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important; /* ✅ Ép buộc luôn luôn 2 cột */
+        gap: 10px !important;
     }
 
-    .action-buttons-row {
-        grid-template-columns: repeat(2, 1fr);
-        /* 2 cột trên mobile lớn */
+    .action-buttons-row button {
+        min-width: 0 !important; /* ✅ Bỏ giới hạn độ rộng để nút co giãn vừa màn hình */
+        width: 100% !important;
+        white-space: normal !important; /* ✅ Cho phép chữ tự động xuống dòng nếu tên nút quá dài (VD: Hoàn thành tất cả) */
+        height: auto !important;
+        min-height: 45px;
+        padding: 8px 5px !important;
+        font-size: 0.75rem !important; /* Thu nhỏ chữ một xíu để cân đối */
+        line-height: 1.3;
+        text-align: center;
+    }
+    
+    /* Căn giữa icon và text khi rớt dòng */
+    .action-buttons-row button i {
+        margin-right: 5px;
     }
 
     .add-btn,
@@ -1123,51 +1094,98 @@ body {
         height: 45px;
     }
 
-    note-actions button {
-        width: 30px;
-        height: 30px;
-        font-size: 0.85rem;
+    .note-card {
+        overflow: visible;
+        /* ✅ Đảm bảo nội dung không bị cắt */
+    }
+
+    .note-content {
+        padding: 12px;
+        /* ✅ Tăng padding cho dễ đọc */
+    }
+
+    .note-header {
+        flex-direction: column;
+        /* ✅ Xếp dọc trên mobile */
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .note-title {
+        max-width: 100%;
+        /* ✅ Title chiếm full width */
+        font-size: 1.1rem;
+        white-space: normal;
+        /* ✅ Cho phép xuống dòng */
     }
 
     .note-actions {
-        gap: 5px;
+        width: 100%;
+        /* ✅ Actions full width */
+        justify-content: flex-end;
+        gap: 8px;
+    }
+
+    .note-actions button {
+        width: 36px;
+        height: 36px;
+        font-size: 0.9rem;
+    }
+
+    .note-text {
+        font-size: 0.85rem;
+        -webkit-line-clamp: 3;
+        /* ✅ Tăng số dòng hiển thị */
+        line-height: 1.5;
     }
 
     .note-footer {
-        gap: 6px;
+        flex-wrap: wrap;
+        gap: 8px;
     }
 
     .note-tag,
     .note-progress,
     .note-date {
-        font-size: 0.8rem;
-        padding: 5px 10px;
+        font-size: 0.75rem;
+        padding: 6px 10px;
+    }
+
+    .note-date::after {
+        font-size: 0.75rem;
+        /* ✅ Giảm font size tooltip */
+        white-space: normal;
+        /* ✅ Cho phép tooltip xuống dòng */
+        max-width: 250px;
     }
 }
 
 @media (max-width: 480px) {
     .report-actions {
+        flex-direction: column;
+        /* ✅ Xếp dọc trên màn hình nhỏ */
         gap: 10px;
     }
 
-    .report-actions {
-        font-size: 0.7rem;
-        /* Giảm cỡ chữ một chút trên màn hình nhỏ */
-        padding: 10px 5px;
-    }
-
-    .submit-btn {
-        margin: 0px auto 0 100px !important;
+    .report-actions .submit-btn,
+    .report-actions .action-btn {
+        width: 100%;
+        max-width: 100%;
+        min-width: auto;
     }
 
     .report-actions-footer {
-        margin-top: 10px !important;
-        margin: 0px auto 0 -265px !important;
+        margin-top: 15px;
+    }
+
+    .report-actions-footer .action-btn {
+        width: 100%;
+        max-width: 100%;
     }
 
     .help-text {
-       align-items: center;
-    justify-content: center;
+        align-items: center;
+        justify-content: center;
     }
 
     .datetime-display {
@@ -1266,7 +1284,7 @@ body {
         padding: 4px 8px;
     }
 
-     .header h1 {
+    .header h1 {
         font-size: 1.4rem;
     }
 
@@ -1306,16 +1324,50 @@ body {
         border-width: 1.5px;
     }
 
-    .user-dropdown {
-        min-width: 200px;
-        right: -10px;
+    .modal-overlay {
+        padding: 0;
+        /* ✅ Bỏ padding hoàn toàn trên màn hình nhỏ */
+    }
+
+    .modal {
+        border-radius: 0;
+        /* ✅ Bỏ bo góc, modal full màn hình */
+        max-height: 100vh;
+    }
+
+    .modal-header {
+        border-radius: 0;
+    }
+
+    .note-card {
+        border-radius: 8px;
+    }
+
+    .note-content {
+        padding: 10px;
+    }
+
+    .note-title {
+        font-size: 1rem;
+    }
+
+    .note-text {
+        font-size: 0.8rem;
+    }
+
+    .note-actions button {
+        width: 32px;
+        height: 32px;
     }
 }
 
 @keyframes pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         transform: scale(1);
     }
+
     50% {
         transform: scale(1.1);
     }
@@ -1326,6 +1378,7 @@ body {
         opacity: 0;
         transform: translateY(-10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -1337,7 +1390,7 @@ body {
     gap: 10px;
     width: 100%;
     flex-wrap: wrap;
-    /* Cho phép xuống dòng trên mobile */
+
 }
 
 #viewReportModal {
@@ -1395,29 +1448,28 @@ body {
     /* Đường viền mỏng phía trên */
 }
 
+.action-btn,
 .add-btn,
-.action-btn {
-    width: 100%;
-    height: 40px;
-    /* Cao hơn một chút để dễ bấm */
+.submit-btn {
+    height: 38px;
+    padding: 0 15px;
     border: none;
-    border-radius: 10px;
-    /* Bo góc mềm mại */
+    border-radius: 8px;
     color: white;
-    font-size: 0.7rem;
-    font-weight: 600;
-    display: flex;
+    background-color: #355bc4;
+    font-size: var(--fs-btn);
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-
-    /* Reset các thuộc tính cũ */
-    margin: 0;
-    min-width: unset;
-    flex: unset;
+    gap: 8px;
+    transition: transform 0.1s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    flex: 1;
+    /* Chia đều chiều rộng */
+    min-width: 120px;
+    white-space: nowrap;
 }
 
 .add-btn:hover,
@@ -1430,15 +1482,15 @@ body {
 
 .notes-grid {
     display: grid;
-    grid-template-columns: repeat(1, 1fr);
-    /* Mặc định 1 cột */
+    grid-template-columns: 1fr;
+    /* ✅ Mobile: LUÔN 1 cột */
     gap: 20px;
     margin-bottom: 30px;
 }
 
 @media (min-width: 768px) {
     .notes-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(var(--notes-grid-columns, 2), 1fr);
     }
 
     .filter-select option {
@@ -1481,13 +1533,12 @@ body {
 
     #notesContainer {
         grid-template-columns: repeat(var(--notes-grid-columns, 2), 1fr);
-        /* Default to 2 if variable not set */
     }
 }
 
 @media (min-width: 1024px) {
     .notes-grid {
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(var(--notes-grid-columns, 3), 1fr);
     }
 
     #notesContainer {
@@ -1496,26 +1547,24 @@ body {
 }
 
 .note-card {
-    background-color: white;
-    border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-    overflow: visible !important;
-    /* CHANGE: Add transform for initial scale and smooth transition */
-    transform: scale(1);
-    transition: transform 0.3s ease-in-out, box-shadow 0.3s;
-    /* Smoother transition */
+    background: white;
+    border-radius: 12px;
+    padding: 15px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #f0f0f0;
     position: relative;
-    z-index: 1;
-    /* Ensure hovered card is above others */
+    /* Fix lỗi nội dung bị cắt */
+    height: auto;
+    min-height: 200px;
 }
 
 .note-card:hover {
-    /* CHANGE: Scale up the note card */
-    transform: scale(1.03);
-    /* Slightly larger */
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-    z-index: 2;
-    /* Bring to front on hover */
+    transform: translateY(-3px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    z-index: 5;
 }
 
 /* Style for completed notes */
@@ -2001,6 +2050,9 @@ body {
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.3s, visibility 0.3s;
+    padding: 10px;
+    /* ✅ THÊM: Padding để modal không sát mép màn hình */
+    overflow-y: auto;
 }
 
 .modal-overlay.active {
@@ -2014,25 +2066,32 @@ body {
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
     width: 100%;
     max-width: 900px;
-    margin: 20px;
-    transform: translateY(20px);
+    margin: auto;
+    /* ✅ THÊM: Căn giữa theo chiều dọc khi scroll */
+    transform: translateY(0);
+    /* ✅ SỬA: Bỏ translateY(20px) */
     animation: fadeInScale 0.3s ease-out forwards;
-
-    /* NEW: Thuộc tính để làm cho modal body có thể cuộn */
     display: flex;
-    /* Biến modal thành flex container */
     flex-direction: column;
-    /* Xếp các mục con theo cột */
     max-height: 90vh;
-    /* Giới hạn chiều cao tổng thể của modal không quá 90% chiều cao viewport */
     overflow: hidden;
-    /* Ẩn bất kỳ nội dung nào tràn ra khỏi modal (sau khi body đã cuộn) */
     box-sizing: border-box;
-    /* Đảm bảo padding được tính vào kích thước */
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 .modal-overlay.active .modal {
-    transform: translateY(0);
+    transform: scale(1);
 }
 
 .modal-header {
@@ -2071,6 +2130,7 @@ body {
     overflow-y: auto;
     padding-right: 15px;
     box-sizing: border-box;
+    
 }
 
 .modal-body .form-group {
@@ -2131,16 +2191,30 @@ body {
 }
 
 .form-group {
+    position: relative;
+    margin-top: 15px; /* Tạo khoảng trống cho label nổi lên */
     margin-bottom: 20px;
 }
 
 .form-label {
-    display: block;
-    margin-bottom: 8px;
-    margin-top: 5px;
-    font-size: 0.7rem;
-    font-weight: 500;
-    color: #555;
+    position: absolute;
+    top: -9px;
+    left: 12px;
+    background-color: white;
+    padding: 0 5px;
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6b7280;
+    z-index: 10;
+    transition: color 0.3s ease;
+    /* ✅ FIX LỖI MẤT KẺ NGANG: Ghi đè lại thuộc tính width: 100% cũ */
+    width: auto !important; 
+    display: inline-block !important; 
+}
+
+.form-group:focus-within .form-label {
+    color: #4f46e5;
 }
 
 .form-input {
@@ -2158,24 +2232,50 @@ body {
     box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
 }
 
+.form-input, 
 input[type="time"] {
     width: 100%;
-    padding: 8px 10px;
-    border: 1px solid #ddd;
+    padding: 12px 15px;
+    border: 1.5px solid #d1d5db; /* Viền xám nhạt */
     border-radius: 10px;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
+    background-color: transparent; /* Để viền không bị che */
     transition: border-color 0.3s, box-shadow 0.3s;
 }
 
+.form-input:focus, 
 input[type="time"]:focus {
     outline: none;
     border-color: #4f46e5;
-    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
 .form-textarea {
     min-height: 120px;
     resize: vertical;
+}
+
+.form-group:has(.inline-btn) .form-label,
+.meta-item .form-label,
+.view-meta-row .form-label {
+    position: static;
+    background: transparent;
+    padding: 0;
+    margin-bottom: 8px;
+    color: #333;
+    /* ✅ Trả lại flex 100% để nút "Thêm công việc" nằm bên lề phải */
+    width: 100% !important;
+    display: flex !important;
+}
+
+.form-group:has(.inline-btn) {
+    margin-top: 0;
+}
+
+/* Chỉnh lại chiều cao cho ô chọn màu */
+.form-input.color-input {
+    padding: 2px 5px;
+    height: 44px; 
 }
 
 .filter-group {
@@ -2218,7 +2318,7 @@ input[type="time"]:focus {
 .action-buttons-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 15px;
+    gap: 12px;
     width: 100%;
     margin-top: 20px;
 }
@@ -2295,23 +2395,6 @@ input[type="time"]:focus {
     /* Giữ nguyên kích thước đã phóng to */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     /* Giữ nguyên bóng đổ */
-}
-
-.submit-btn {
-    width: 100%;
-    padding: 8px 10px;
-    background-color: #4f46e5;
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-size: 0.7rem;
-    font-weight: 400;
-    justify-content: center;
-    margin: 0px auto 0 350px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-    width: 150px;
-    height: 50px;
 }
 
 .submit-btn:hover {
@@ -2526,34 +2609,91 @@ input[type="time"]:focus {
 
 .user-dropdown {
     position: absolute;
-    top: 50px !important;
-    right: 0;
+    top: 55px !important; /* Khoảng cách từ avatar xuống */
+    left: 0 !important; /* ✅ Bám sát mép TRÁI của avatar để nở ra bên phải (không bị lẹm màn hình) */
+    right: auto !important; /* Bỏ bám phải */
     background: white;
     border-radius: 12px;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
     padding: 10px;
-    min-width: 220px;
+    min-width: 230px; /* Cho rộng ra chút để email không bị sát mép */
     z-index: 99999 !important;
     animation: fadeInDown 0.2s ease-out;
     border: 1px solid #f0f0f0;
 }
 
+/* ✅ MŨI TÊN TAM GIÁC - CHỈNH LẠI VỊ TRÍ VÀO CHÍNH GIỮA ICON */
 .user-dropdown::before {
     content: '';
     position: absolute;
     top: -6px;
-    right: 20px;
+    /* Avatar width = 42px -> Tâm là 21px. Mũi tên width = 12px -> Tâm là 6px. Vậy left = 21 - 6 = 15px */
+    left: 65px !important; /* ✅ Đâm thẳng vào giữa avatar */
+    right: auto !important; 
     width: 12px;
     height: 12px;
     background: white;
     transform: rotate(45deg);
     border-top: 1px solid #f0f0f0;
     border-left: 1px solid #f0f0f0;
+    z-index: -1;
+}
+
+
+.user-dropdown button {
+    font-size: 0.9rem;
+    padding: 10px;
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 8px;
+    width: 100%;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .user-dropdown button:hover {
     background-color: #f3f4f6 !important;
     color: #4f46e5 !important;
+}
+
+.user-dropdown button i {
+    width: 20px;
+    /* ✅ Căn đều icon */
+    text-align: center;
+}
+
+.user-dropdown>div:first-child {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 5px;
+}
+
+.user-dropdown>div:first-child p:first-child {
+    font-weight: 600;
+    margin-bottom: 3px;
+    color: #1f2937;
+    font-size: 0.95rem;
+}
+
+.user-dropdown>div:first-child p:last-child {
+    font-size: 0.85rem;
+    color: #6b7280;
+    word-break: break-all;
+    /* ✅ Tránh email dài bị tràn */
+}
+
+/* ✅ BUTTON ĐĂNG XUẤT - MÀU ĐỎ */
+#logoutBtn {
+    color: #ef4444 !important;
+}
+
+#logoutBtn:hover {
+    background-color: #fee2e2 !important;
+    color: #dc2626 !important;
 }
 
 @media (max-width: 767px) {
@@ -2569,18 +2709,24 @@ input[type="time"]:focus {
         margin-top: 10px;
     }
 
-    .user-dropdown {
-        left: auto !important;
-        /* Bỏ left: 0 */
-        right: 0 !important;
-        /* Căn lề phải */
+     .user-dropdown {
+        top: 50px !important;
+        left: 0 !important; 
+        right: auto !important;
+        min-width: 210px;
     }
 
-    .user-dropdown::before {
-        left: auto !important;
-        /* Bỏ left: 20px */
-        right: 20px !important;
-        /* Căn mũi tên sang phải */
+    .user-dropdown button {
+        font-size: 0.85rem;
+        padding: 12px 10px;
+    }
+
+    .user-dropdown>div:first-child p:first-child {
+        font-size: 0.9rem;
+    }
+
+    .user-dropdown>div:first-child p:last-child {
+        font-size: 0.8rem;
     }
 
     .filter-group {
@@ -2626,19 +2772,13 @@ input[type="time"]:focus {
     }
 
     .report-actions .submit-btn {
-         margin: 10px auto 0 90px;
+        margin: 10px auto 0 90px;
     }
 
 
     .header h1 {
         font-size: 1.6rem;
         margin-top: 10px;
-    }
-
-    .header-actions {
-        top: -40px;
-        right: 10px;
-        gap: 8px;
     }
 
     .header-action-btn,
@@ -2659,12 +2799,6 @@ input[type="time"]:focus {
         width: 18px;
         height: 18px;
         font-size: 0.65rem;
-    }
-
-    .datetime-display {
-        position: static;
-        margin: 20px auto 0;
-        max-width: 250px;
     }
 }
 
@@ -2881,14 +3015,6 @@ input[type="time"]:focus {
     color: #4b5563;
 }
 
-#notesContainer {
-    display: grid;
-    grid-template-columns: repeat(var(--notes-grid-columns), 1fr);
-    gap: 10px;
-    padding-top: 5px;
-    align-items: start;
-}
-
 .filter-select option:disabled {
     color: #ccc;
     font-size: 0.8em;
@@ -2923,6 +3049,29 @@ input[type="time"]:focus {
    REPORTS MENU & DROPDOWN
    ========================================== */
 
+.header-action-btn,
+.user-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: none;
+    background: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    font-size: 1.1rem;
+    color: #4f46e5;
+}
+
+.header-action-btn:hover,
+.user-avatar:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
 .header-action-btn:active {
     transform: scale(0.95);
 }
@@ -2950,20 +3099,18 @@ input[type="time"]:focus {
 
 .reports-btn .badge {
     position: absolute;
-    top: -4px;
-    right: -4px;
+    top: -5px;
+    right: -5px;
     background: #ef4444;
     color: white;
     border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    font-size: 0.7rem;
-    font-weight: bold;
+    width: 18px;
+    height: 18px;
+    font-size: 0.6rem;
     display: flex;
     align-items: center;
     justify-content: center;
     border: 2px solid white;
-    animation: pulse 2s infinite;
 }
 
 .dropdown-header {
@@ -3326,19 +3473,20 @@ input[type="time"]:focus {
 
 .report-actions {
     display: flex;
+    justify-content: center;
+    /* ✅ Căn giữa các nút */
     gap: 15px;
-    /* Khoảng cách giữa 2 nút */
     margin-top: 20px;
     width: 100%;
 }
 
-/* Chỉnh sửa style cho các button bên trong */
-.report-actions .submit-btn {
-    flex: 1;
+.report-actions .submit-btn,
+.report-actions .action-btn {
+    flex: 0 1 auto;
+    /* ✅ Không chiếm hết chiều rộng */
     margin: 0 !important;
-    /* Quan trọng: Xóa margin lệch trái của class gốc */
-    width: auto;
-    /* Reset chiều rộng */
+    min-width: 150px;
+    max-width: 200px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3346,8 +3494,20 @@ input[type="time"]:focus {
 }
 
 .report-actions-footer {
-    margin-top: 10px;
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* ✅ Căn giữa nút và text */
+    gap: 10px;
 }
+
+.report-actions-footer .action-btn {
+    margin: 0 auto !important;
+    /* ✅ Căn giữa nút "Gửi báo cáo" */
+    max-width: 300px;
+}
+
 
 /* Style chung cho tất cả các nút action */
 .header-action-btn {
@@ -3380,48 +3540,43 @@ input[type="time"]:focus {
 .user-menu,
 .reports-btn,
 .header-action-btn {
-    position: static !important; /* Hủy bỏ absolute cũ */
+    position: static !important;
+    /* Hủy bỏ absolute cũ */
     top: auto !important;
     left: auto !important;
     right: auto !important;
     margin: 0 !important;
 }
 
+.user-menu {
+    position: relative;
+}
+
 .header-actions {
     position: absolute;
-    top: 15px;
-    left: 15px; /* SỬA: Căn lề trái */
-    right: auto; /* Loại bỏ căn phải */
+    left: 15px;
+    top: 10px;
+    right: auto;
     display: flex;
     align-items: center;
-    gap: 12px;
-    z-index: 1000;
-}
-
-/* 3. Căn chỉnh dropdown menu của User */
-.user-dropdown {
-    top: 55px !important; /* Khoảng cách từ nút avatar xuống */
-    right: 0 !important;  /* Căn phải theo container cha */
-    left: auto !important; /* Bỏ căn trái */
-}
-
-/* Mũi tên tam giác của dropdown */
-.user-dropdown::before {
-    left: auto !important;
-    right: 14px !important; /* Đặt mũi tên sang phải */
+    gap: 10px;
+    z-index: 100;
 }
 
 /* 4. Responsive cho Mobile (Màn hình nhỏ) */
 @media (max-width: 768px) {
     .header-actions {
-        top: -40px;
-        right: 10px; /* Giữ bên phải nhưng sát lề hơn chút */
-        gap: 8px;    /* Giảm khoảng cách giữa các nút */
+        top: 0px;
+        right: 10px;
+        /* Giữ bên phải nhưng sát lề hơn chút */
+        gap: 8px;
+        /* Giảm khoảng cách giữa các nút */
     }
-    
+
     /* Đảm bảo tiêu đề không bị đè lên nút */
     .header h1 {
-        margin-top: 50px; /* Đẩy tiêu đề xuống dưới nút */
+        margin-top: 50px;
+        /* Đẩy tiêu đề xuống dưới nút */
         font-size: 1.5rem;
     }
 
@@ -3431,4 +3586,134 @@ input[type="time"]:focus {
         margin: 10px auto;
         width: fit-content;
     }
+
+    .modal-overlay {
+        padding: 5px;
+        /* ✅ Giảm padding trên mobile */
+        align-items: flex-start;
+        /* ✅ Căn modal lên đầu màn hình */
+        padding-top: 20px;
+        /* ✅ Khoảng cách từ top */
+    }
+
+    .modal {
+        max-width: 100%;
+        margin: 0;
+        border-radius: 12px 12px 0 0;
+        /* ✅ Bo góc chỉ phía trên */
+        max-height: 95vh;
+        /* ✅ Tăng chiều cao tối đa */
+    }
+
+    .modal-header {
+        padding: 15px;
+        position: sticky;
+        /* ✅ Header dính ở top khi scroll */
+        top: 0;
+        background: white;
+        z-index: 10;
+        border-radius: 12px 12px 0 0;
+    }
+
+    .modal-title {
+        font-size: 1.1rem;
+    }
+
+    .modal-body {
+        padding: 15px;
+        padding-right: 10px;
+        /* ✅ Giảm padding bên phải cho scrollbar */
+    }
+
+    /* ✅ Tối ưu form input trên mobile */
+    .form-input,
+    .form-textarea {
+        font-size: 16px;
+        /* ✅ Tránh zoom khi focus trên iOS */
+    }
+
+    .submit-btn {
+        margin: 20px auto 0;
+        width: 100%;
+        max-width: 100%;
+    }
 }
+
+/* ==========================================
+   FORM BUTTONS - CĂN GIỮA CHO MỌI FORM
+   ========================================== */
+
+/* 1. Căn giữa button trong modal forms */
+.modal-body .submit-btn,
+.modal-body .action-btn,
+.modal-body button[type="submit"] {
+    display: block;
+    margin: 20px auto 0 auto !important;
+    /* ✅ Căn giữa ngang */
+    width: fit-content;
+    min-width: 200px;
+    max-width: 100%;
+}
+
+/* 2. Căn giữa nhóm buttons (nếu có nhiều nút ngang hàng) */
+.modal-body .confirmation-buttons,
+.modal-body .form-actions,
+.modal-body .button-group {
+    display: flex;
+    justify-content: center;
+    /* ✅ Căn giữa theo trục ngang */
+    align-items: center;
+    gap: 10px;
+    margin-top: 20px;
+    width: 100%;
+}
+
+/* 3. Giữ nguyên style căn trái cho action-buttons-row (ngoài modal) */
+.action-buttons-row {
+    justify-content: flex-start;
+    /* ✅ Các nút trong controls vẫn căn trái */
+}
+
+/* 4. Đảm bảo các nút trong action-buttons-row KHÔNG bị ảnh hưởng */
+.action-buttons-row .action-btn,
+.action-buttons-row .add-btn {
+    margin: 0 !important;
+    /* ✅ Reset margin để grid layout hoạt động đúng */
+}
+
+/* 5. Button trong form confirmation modal */
+.confirmation-modal .submit-btn,
+.confirmation-modal .confirmation-btn {
+    margin: 0 !important;
+    /* ✅ Đã có flex justify-content xử lý */
+}
+
+/* 6. Responsive cho mobile */
+@media (max-width: 768px) {
+
+    .modal-body .submit-btn,
+    .modal-body .action-btn {
+        width: 100%;
+        max-width: 100%;
+        min-width: auto;
+    }
+
+    .modal-body .confirmation-buttons {
+        flex-direction: row;
+        /* ✅ Giữ 2 nút ngang hàng trên mobile */
+        gap: 8px;
+    }
+
+    .modal-body .confirmation-btn {
+        flex: 1;
+        /* ✅ Chia đều chiều rộng */
+    }
+}
+
+@media (max-width: 480px) {
+    .modal-body .submit-btn {
+        font-size: 0.85rem;
+        padding: 12px 20px;
+    }
+}
+

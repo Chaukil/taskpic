@@ -15,39 +15,40 @@
       <header class="header">
         <h1>Châu Chí Kil</h1>
 
-        <!-- MỚI: Nhóm các nút chức năng -->
-        <div class="header-actions">
-          <!-- Nút Settings -->
-          <button id="settingsBtn" class="header-action-btn settings-btn" title="Cài đặt">
-            <i class="fas fa-cog"></i>
-          </button>
+<div class="header-actions">
+    <!-- Nút Settings -->
+    <button id="settingsBtn" class="header-action-btn settings-btn" title="Cài đặt">
+        <i class="fas fa-cog"></i>
+    </button>
 
-          <!-- Nút User Menu -->
-          <div class="user-menu" id="userMenu">
-            <div class="user-avatar" id="userAvatar" title="Tài khoản">
-              <i class="fas fa-user-circle"></i>
-            </div>
-            <div class="user-dropdown" id="userDropdown" style="display: none;">
-              <div style="padding: 10px; border-bottom: 1px solid #eee; margin-bottom: 10px;">
+    <!-- ✅ User Menu - PHẢI CÓ class="user-menu" -->
+    <div class="user-menu" id="userMenu">
+        <div class="user-avatar" id="userAvatar" title="Tài khoản">
+            <i class="fas fa-user-circle"></i>
+        </div>
+        
+        <!-- ✅ Dropdown PHẢI NẰM TRONG .user-menu -->
+        <div class="user-dropdown" id="userDropdown" style="display: none;">
+            <div style="padding: 10px; border-bottom: 1px solid #eee; margin-bottom: 10px;">
                 <p style="font-weight: 600; margin-bottom: 3px;" id="userName">Loading...</p>
                 <p style="font-size: 0.85rem; color: #666;" id="userEmail">Loading...</p>
-              </div>
-              <button id="profileBtn"
-                style="width: 100%; padding: 10px; border: none; background: none; text-align: left; cursor: pointer; border-radius: 5px;">
-                <i class="fas fa-user"></i> Hồ sơ
-              </button>
-              <button id="logoutBtn"
-                style="width: 100%; padding: 10px; border: none; background: none; text-align: left; cursor: pointer; color: #ef4444; border-radius: 5px;">
-                <i class="fas fa-sign-out-alt"></i> Đăng xuất
-              </button>
             </div>
-          </div>
-
-          <!-- Nút Reports -->
-          <button id="reportsBtn" class="header-action-btn reports-btn" title="Báo cáo">
-            <i class="fas fa-file-alt"></i> <span class="badge" id="reportsBadge">0</span>
-          </button>
+            <button id="profileBtn">
+                <i class="fas fa-user"></i> Hồ sơ
+            </button>
+            <button id="logoutBtn">
+                <i class="fas fa-sign-out-alt"></i> Đăng xuất
+            </button>
         </div>
+    </div>
+
+    <!-- Nút Reports -->
+    <button id="reportsBtn" class="header-action-btn reports-btn" title="Báo cáo">
+        <i class="fas fa-file-alt"></i> 
+        <span class="badge" id="reportsBadge">0</span>
+    </button>
+</div>
+
 
         <!-- MỚI: Đồng hồ ngày giờ -->
         <div class="datetime-display" id="datetimeDisplay">
@@ -213,8 +214,9 @@
             <label class="form-label">
               <span id="subTasksLabel">Công việc cần thực hiện</span>
               <button type="button" id="addSubTaskBtn" class="inline-btn">
-                <i class="fas fa-plus"></i> Thêm công việc
+                <i class="fas fa-plus"></i> <span id="addSubTaskText">Thêm công việc</span>
               </button>
+
             </label>
             <div id="subTasksContainer" class="sub-tasks-container">
               <!-- Sub-tasks will be added here dynamically -->

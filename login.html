@@ -20,7 +20,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: 10px;
         }
 
         .auth-container {
@@ -29,7 +29,7 @@
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             max-width: 450px;
             width: 100%;
-            padding: 40px;
+            padding: 20px;
             animation: slideIn 0.5s ease-out;
         }
 
@@ -53,7 +53,7 @@
         .auth-header h1 {
             color: #333;
             font-size: 2rem;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
 
         .auth-header p {
@@ -93,24 +93,34 @@
             display: block;
         }
 
+        /* --- THAY THẾ TRONG LOGIN.HTML --- */
         .form-group {
+            position: relative;
+            margin-top: 15px;
             margin-bottom: 20px;
         }
 
         .form-label {
-            display: block;
-            margin-bottom: 8px;
-            color: #333;
-            font-weight: 500;
-            font-size: 0.9rem;
+            position: absolute;
+            top: -10px;
+            left: 12px;
+            background-color: white;
+            padding: 0 5px;
+            margin: 0;
+            color: #6b7280;
+            font-weight: 600;
+            font-size: 0.75rem;
+            z-index: 10;
+            transition: color 0.3s;
         }
 
         .form-input {
             width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
+            padding: 14px 15px;
+            border: 1.5px solid #d1d5db;
             border-radius: 10px;
-            font-size: 0.95rem;
+            font-size: 0.85rem;
+            background: transparent;
             transition: border-color 0.3s;
         }
 
@@ -118,6 +128,11 @@
             outline: none;
             border-color: #667eea;
         }
+
+        .form-group:focus-within .form-label {
+            color: #667eea;
+        }
+
 
         .password-wrapper {
             position: relative;
@@ -150,7 +165,7 @@
 
         .remember-me label {
             color: #666;
-            font-size: 0.9rem;
+            font-size: 0.75rem;
             cursor: pointer;
         }
 
@@ -179,7 +194,7 @@
 
         .divider {
             text-align: center;
-            margin: 25px 0;
+            margin: 15px 0;
             color: #999;
             position: relative;
         }
@@ -333,6 +348,18 @@
             .social-login {
                 flex-direction: column;
             }
+
+            .form-label {
+                font-size: 0.8rem;
+            }
+
+            .form-input {
+                font-size: 0.9rem;
+            }
+
+            .remember-me label {
+                font-size: 0.8rem;
+            }
         }
 
         /* Enhanced Google Login Button */
@@ -348,7 +375,7 @@
             align-items: center;
             justify-content: center;
             font-weight: 500;
-            font-size: 0.95rem;
+            font-size: 0.85rem;
             color: #333;
             margin-top: 0;
         }
@@ -406,8 +433,7 @@
 <body>
     <div class="auth-container">
         <div class="auth-header">
-            <h1><i class="fas fa-notes-medical"></i> Châu Chí Kil</h1>
-            <p>Quản lý ghi chú thông minh</p>
+            <h1><i class="fas fa-notes-medical"></i> My Note</h1>
         </div>
 
         <div class="error-message" id="errorMessage"></div>
