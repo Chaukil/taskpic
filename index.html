@@ -41,12 +41,6 @@
               </button>
             </div>
           </div>
-
-          <!-- Nút Reports -->
-          <button id="reportsBtn" class="header-action-btn reports-btn" title="Báo cáo">
-            <i class="fas fa-file-alt"></i>
-            <span class="badge" id="reportsBadge">0</span>
-          </button>
         </div>
 
 
@@ -128,6 +122,7 @@
             <option value="incomplete">Chưa hoàn thành</option>
             <option value="completed">Đã hoàn thành</option>
             <option value="overdue">Trễ giờ</option>
+            <option value="temporary">Công việc tạm thời</option>
           </select>
         </div>
 
@@ -156,10 +151,13 @@
       </div>
     </div>
 
-
-
     <div id="notesContainer" class="notes-grid">
+      <div class="notes-loading" id="notesLoading">
+        <i class="fas fa-spinner"></i>
+        <p>Đang tải...</p>
+      </div>
     </div>
+
 
     <div id="emptyState" class="empty-state">
       <i class="fas fa-notes-medical"></i>
@@ -208,7 +206,6 @@
               <input type="number" id="expectedDuration" class="form-input" min="5" step="5" placeholder="30" />
               <p class="help-text" id="helpExpectedDuration">Ước tính (5, 10, 15... phút)</p>
             </div>
-
           </div>
           <div class="form-group">
             <label class="form-label">
@@ -233,9 +230,23 @@
               <!-- Tags sẽ được render ở đây -->
             </div>
           </div>
-          <button type="submit" class="submit-btn" id="submitNoteBtn">
-            Lưu ghi chú
-          </button>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-top: 20px;">
+            <!-- Checkbox bên trái -->
+            <label
+              style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex-shrink: 0; position: relative;">
+              <input type="checkbox" id="isTemporaryTask"
+                style="width: 20px; height: 20px; cursor: pointer; accent-color: #ef4444; flex-shrink: 0;">
+              <span id="temporaryTaskLabel" style="font-size: 0.85rem; color: #666; white-space: nowrap;"
+                title="Ghi chú sẽ tự động xóa khi hoàn thành">
+                Task tạm thời
+              </span>
+            </label>
+
+            <!-- Button bên phải -->
+            <button type="submit" class="submit-btn" id="submitNoteBtn" style="margin: 0; flex: 1; max-width: 200px;">
+              Lưu ghi chú
+            </button>
+          </div>
         </form>
       </div>
     </div>
@@ -559,20 +570,6 @@
             <div id="timeReportsList"></div>
           </div>
 
-          <!-- ========================================
-           MỚI: Nút gửi báo cáo
-           ======================================== -->
-          <div class="report-actions-footer">
-            <button id="sendReportFromTimeReportsBtn" class="action-btn send-report-btn">
-              <i class="fas fa-paper-plane"></i>
-              <span>Gửi báo cáo này cho người khác</span>
-            </button>
-            <p class="help-text" style="margin-top: 10px; text-align: center;">
-              <i class="fas fa-info-circle"></i>
-              Chỉ gửi được cho người dùng đã đăng ký trong hệ thống
-            </p>
-          </div>
-
         </div>
       </div>
     </div>
@@ -647,8 +644,8 @@
 
           <div class="form-group">
             <!-- Thêm id="labelProfileEmail" -->
-            <label class="form-label" id="labelProfileEmail">Email (Không thể thay đổi)</label>
-            <input type="email" id="profileEmail" class="form-input" disabled style="background-color: #f3f4f6;" />
+            <label class="form-label" id="labelProfileEmail">Email</label>
+            <input type="email" id="profileEmail" class="form-input" disabled />
           </div>
 
           <div class="form-group">
@@ -660,7 +657,7 @@
           <div class="form-group">
             <!-- Thêm id="labelProfileJoined" -->
             <label class="form-label" id="labelProfileJoined">Ngày tham gia</label>
-            <input type="text" id="profileJoinedDate" class="form-input" disabled style="background-color: #f3f4f6;" />
+            <input type="text" id="profileJoinedDate" class="form-input" disabled />
           </div>
 
           <div style="border-top: 1px solid #eee; margin: 20px 0; padding-top: 20px;">

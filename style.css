@@ -13,7 +13,7 @@
 
     /* Font sizes chuẩn hóa */
     --fs-text: 0.75rem;
-    --fs-btn: 0.8rem;
+    --fs-btn: 0.85rem;
     --fs-input: 0.75rem;
     --fs-title: 1.1rem;
 }
@@ -116,7 +116,7 @@ body {
     right: 10px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 5px;
     background: rgba(255, 255, 255, 0.2);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -140,14 +140,14 @@ body {
 }
 
 #dateText {
-    font-size: 0.95rem;
-    font-weight: 600;
+    font-size: 0.9rem;
+    font-weight: 500;
     color: #374151;
 }
 
 #timeText {
-    font-size: 1.4rem;
-    font-weight: 700;
+    font-size: 1.2rem;
+    font-weight: 500;
     color: #111827;
     font-variant-numeric: tabular-nums;
 }
@@ -155,15 +155,15 @@ body {
 .controls {
     background: white;
     border-radius: 12px;
-    padding: 15px;
-    margin-bottom: 25px;
+    padding: 5px;
+    margin-bottom: 15px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
 }
 
 .controls-container {
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 0px;
 }
 
 .time-reports-btn {
@@ -887,7 +887,7 @@ body {
 
 .view-sub-task-text {
     flex: 1;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     color: #1f2937;
     line-height: 1.5;
     word-break: break-word; /* ⬅️ Tự động xuống dòng nếu text dài */
@@ -921,6 +921,30 @@ body {
 .copy-link-btn i {
     font-size: 0.85rem;
 }
+
+/* Temporary Task Badge */
+.note-card[data-temporary="true"] {
+    border-left: 4px solid #ef4444;
+}
+
+@keyframes fadeOutDelete {
+    0% { 
+        opacity: 1; 
+        transform: scale(1); 
+    }
+    100% { 
+        opacity: 0; 
+        transform: scale(0.8); 
+        height: 0;
+        padding: 0;
+        margin: 0;
+    }
+}
+
+.note-card.deleting {
+    animation: fadeOutDelete 0.5s ease-out forwards;
+}
+
 
 .note-progress {
     display: inline-flex;
@@ -1015,6 +1039,21 @@ body {
     }
 }
 
+.notes-loading {
+    text-align: center;
+    padding: 40px;
+    color: #999;
+}
+
+.notes-loading i {
+    font-size: 3rem;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
 
 .complete-btn-header {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
@@ -1465,12 +1504,12 @@ body {
 
 .search-input {
     flex: 2;
-    padding: 12px 15px;
+    padding: 8px 10px;
     border: 1px solid #ddd;
     border-radius: 10px;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     transition: border-color 0.3s, box-shadow 0.3s;
-    height: 40px;
+    height: 37px;
 }
 
 .search-input:focus {
@@ -1483,9 +1522,9 @@ body {
     text-align: center;
     margin-top: 80px;
     /* Khoảng cách từ nội dung chính */
-    padding: 20px 0;
-    font-size: 0.9rem;
-    color: #777;
+    padding: 10px 0;
+    font-size: 0.75rem;
+    color: #1a1919;
     border-top: 1px solid #eee;
     /* Đường viền mỏng phía trên */
 }
@@ -1548,8 +1587,6 @@ body {
         /* Căn giữa các mục theo chiều dọc */
         flex-wrap: wrap;
         /* Cho phép xuống dòng nếu màn hình hẹp */
-        gap: 15px 20px;
-        /* Khoảng cách giữa các hàng và cột */
     }
 
     .filter-group {
@@ -1591,7 +1628,7 @@ body {
 .note-card {
     background: white;
     border-radius: 12px;
-    padding: 15px;
+    padding: 10px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     transition: transform 0.2s, box-shadow 0.2s;
     display: flex;
@@ -1776,9 +1813,9 @@ body {
 }
 
 .form-input.color-input {
-    width: 60px;
+    width: 100%;
     /* Chiều rộng nhỏ hơn cho input màu */
-    height: 38px;
+    height: 37px;
     /* Đảm bảo chiều cao phù hợp */
     padding: 2px;
     /* Giảm padding */
@@ -2140,8 +2177,8 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px;
-    padding-bottom: 15px;
+    padding: 15px;
+    padding-bottom: 10px;
     /* Giữ khoảng cách dưới tiêu đề */
     border-bottom: 1px solid #eee;
     flex-shrink: 0;
@@ -2240,17 +2277,17 @@ body {
     gap: 15px;
     padding-bottom: 15px;
     border-bottom: 1px solid #eee;
-    margin-bottom: 20px;
+    margin-bottom: 5px;
 }
 
 .view-meta-row .view-content {
     width: 100%;
-    padding: 12px 15px;
-    border: 1.5px solid #d1d5db;
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
     border-radius: 10px;
-    background-color: #f9fafb;
-    font-size: 0.85rem;
-    min-height: 44px;
+    background-color: #ffffff;
+    font-size: 0.75rem;
+    min-height: 37px;
     display: flex;
     align-items: center;
 }
@@ -2287,7 +2324,7 @@ body {
     padding: 8px 10px;
     border: 1px solid #ddd;
     border-radius: 10px;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     transition: border-color 0.3s, box-shadow 0.3s;
 }
 
@@ -2300,10 +2337,10 @@ body {
 .form-input, 
 input[type="time"] {
     width: 100%;
-    padding: 12px 15px;
+    padding: 8px 10px;
     border: 1.5px solid #d1d5db; /* Viền xám nhạt */
     border-radius: 10px;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     background-color: transparent; /* Để viền không bị che */
     transition: border-color 0.3s, box-shadow 0.3s;
 }
@@ -2337,12 +2374,6 @@ input[type="time"]:focus {
     margin-top: 0;
 }
 
-/* Chỉnh lại chiều cao cho ô chọn màu */
-.form-input.color-input {
-    padding: 2px 5px;
-    height: 44px; 
-}
-
 .filter-group {
     display: flex;
     gap: 10px;
@@ -2351,11 +2382,11 @@ input[type="time"]:focus {
 .filter-select {
     flex: 1;
     min-width: 150px;
-    height: 40px;
+    height: 37px;
     padding: 8px 10px;
     border: 1px solid #ddd;
     border-radius: 10px;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     background-color: white;
     cursor: pointer;
     transition: border-color 0.3s, box-shadow 0.3s;
@@ -2577,7 +2608,7 @@ input[type="time"]:focus {
     border: 1.5px solid #d1d5db;
     border-radius: 10px;
     font-size: 0.85rem;
-    background-color: #f9fafb;
+    background-color: #ffffff;
     color: #333;
     min-height: 44px;
     word-break: break-word;
@@ -3040,7 +3071,7 @@ input[type="time"]:focus {
 }
 
 .help-text {
-    font-size: 0.7em;
+    font-size: 0.8em;
     color: #777;
     margin-top: 5px;
 }
@@ -3058,19 +3089,13 @@ input[type="time"]:focus {
 .action-btn.small-btn,
 .submit-btn.small-btn {
     padding: 8px 10px;
-    font-size: 0.8em;
+    font-size: 0.9em;
     margin-top: 10px;
-}
-
-/* Bạn có thể thêm các màu sắc cho các thẻ khác nếu muốn */
-.note-tag.tag-khong-xac-dinh {
-    background-color: #e5e7eb;
-    color: #4b5563;
 }
 
 .filter-select option:disabled {
     color: #ccc;
-    font-size: 0.8em;
+    font-size: 0.85em;
 }
 
 /* ========================================
@@ -3770,3 +3795,31 @@ input[type="time"]:focus {
     }
 }
 
+/* Temporary Task Checkbox - Inline with Submit Button */
+#isTemporaryTask {
+    width: 20px !important;
+    height: 20px !important;
+    cursor: pointer;
+    accent-color: #ef4444;
+    flex-shrink: 0;
+    margin: 0 !important;
+}
+
+/* Responsive cho mobile */
+@media (max-width: 480px) {
+    /* Trên mobile, xếp dọc thay vì ngang */
+    .modal-body > div:has(#isTemporaryTask) {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 12px !important;
+    }
+
+    .modal-body > div:has(#isTemporaryTask) label {
+        width: 100%;
+    }
+
+    .modal-body > div:has(#isTemporaryTask) .submit-btn {
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+}
