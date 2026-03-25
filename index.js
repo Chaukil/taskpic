@@ -4208,6 +4208,155 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
+    // ==========================================
+    // LINK PASSWORD VỚI GOOGLE ACCOUNT
+    // ==========================================
+    async function linkPasswordProvider(newPassword) {
+        if (!currentUser) {
+            showToast('Vui lòng đăng nhập trước!', 'error');
+            return false;
+        }
+
+        try {
+            // ✅ KIỂM TRA ĐÃ CÓ PASSWORD CHƯA
+            const signInMethods = await auth.fetchSignInMethodsForEmail(currentUser.email);
+
+            if (signInMethods.includes('password')) {
+                showToast('Tài khoản đã có mật khẩu rồi!', 'info');
+                return false;
+            }
+
+            // ✅ TẠO CREDENTIAL MỚI
+            const credential = firebase.auth.EmailAuthProvider.credential(
+                currentUser.email,
+                newPassword
+            );
+
+            // ✅ LINK VỚI ACCOUNT HIỆN TẠI
+            await currentUser.linkWithCredential(credential);
+
+            // ✅ CẬP NHẬT PROVIDERS TRONG FIRESTORE
+            const userDocRef = db.collection('users').doc(currentUser.uid);
+            const userDoc = await userDocRef.get();
+            const userData = userDoc.data();
+
+            let providers = userData.providers || [];
+            if (!providers.includes('password')) {
+                providers.push('password');
+                await userDocRef.update({ providers: providers });
+            }
+
+            showToast('✅ Đã tạo mật khẩu thành công! Bạn có thể đăng nhập bằng email/password.', 'success');
+            return true;
+
+        } catch (error) {
+            if (error.code === 'auth/weak-password') {
+                showToast('❌ Mật khẩu quá yếu! Vui lòng dùng ít nhất 6 ký tự.', 'error');
+            } else if (error.code === 'auth/email-already-in-use') {
+                showToast('⚠️ Email này đã có mật khẩu!', 'warning');
+            } else {
+                showToast('❌ Lỗi tạo mật khẩu: ' + error.message, 'error');
+            }
+            return false;
+        }
+    }
+
+    // ==========================================
+    // THÊM UI TẠO MẬT KHẨU VÀO PROFILE MODAL
+    // ==========================================
+    if (profileBtn) {
+        profileBtn.addEventListener("click", async () => {
+            if (userDropdown) userDropdown.style.display = 'none';
+            if (!currentUser) return;
+
+            profileModal.classList.add("active");
+            document.body.style.overflow = "hidden";
+
+            profileEmailInput.value = currentUser.email;
+
+            try {
+                const userDoc = await db.collection('users').doc(currentUser.uid).get();
+                if (userDoc.exists) {
+                    const userData = userDoc.data();
+                    profileNameInput.value = userData.name || currentUser.displayName || "";
+
+                    // ✅ KIỂM TRA ĐÃ CÓ PASSWORD CHƯA
+                    const signInMethods = await auth.fetchSignInMethodsForEmail(currentUser.email);
+                    const hasPassword = signInMethods.includes('password');
+
+                    // ✅ HIỂN THỊ/ẨN NÚT TẠO MẬT KHẨU
+                    const createPasswordSection = document.getElementById('createPasswordSection');
+                    if (createPasswordSection) {
+                        createPasswordSection.style.display = hasPassword ? 'none' : 'block';
+                    }
+                } else {
+                    profileNameInput.value = currentUser.displayName || "";
+                }
+            } catch (error) {
+                profileNameInput.value = currentUser.displayName || "";
+            }
+
+            if (currentUser.metadata && currentUser.metadata.creationTime) {
+                const date = new Date(currentUser.metadata.creationTime);
+                const locale = currentLanguage === 'vi' ? 'vi-VN' : 'en-US';
+                profileJoinedInput.value = date.toLocaleDateString(locale);
+            }
+
+            if (currentUser.photoURL) {
+                profileAvatarDisplay.innerHTML = `<img src="${currentUser.photoURL}" style="width: 100%; height: 100%; object-fit: cover;">`;
+            } else {
+                profileAvatarDisplay.innerHTML = `<i class="fas fa-user"></i>`;
+            }
+        });
+    }
+
+    // ==========================================
+    // EVENT: TẠO MẬT KHẨU TỪ GOOGLE ACCOUNT
+    // ==========================================
+    const createPasswordBtn = document.getElementById('createPasswordBtn');
+    if (createPasswordBtn) {
+        createPasswordBtn.addEventListener('click', async () => {
+            const newPassword = document.getElementById('newPasswordInput').value;
+            const confirmPassword = document.getElementById('confirmNewPasswordInput').value;
+
+            if (!newPassword || !confirmPassword) {
+                showToast('Vui lòng nhập đầy đủ mật khẩu!', 'warning');
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                showToast('Mật khẩu phải có ít nhất 6 ký tự!', 'warning');
+                document.getElementById('newPasswordInput').focus();
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                showToast('Mật khẩu xác nhận không khớp!', 'error');
+                document.getElementById('confirmNewPasswordInput').focus();
+                return;
+            }
+
+            // Disable button
+            createPasswordBtn.disabled = true;
+            createPasswordBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Đang tạo...';
+
+            const success = await linkPasswordProvider(newPassword);
+
+            if (success) {
+                // Ẩn section tạo password
+                document.getElementById('createPasswordSection').style.display = 'none';
+
+                // Xóa input
+                document.getElementById('newPasswordInput').value = '';
+                document.getElementById('confirmNewPasswordInput').value = '';
+            }
+
+            // Re-enable button
+            createPasswordBtn.disabled = false;
+            createPasswordBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Tạo mật khẩu';
+        });
+    }
+
     /* ==========================================
    REPORTS MANAGEMENT FUNCTIONS
    ========================================== */

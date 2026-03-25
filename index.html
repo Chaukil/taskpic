@@ -660,6 +660,33 @@
             <input type="text" id="profileJoinedDate" class="form-input" disabled />
           </div>
 
+          <div id="createPasswordSection"
+            style="display: none; border-top: 1px solid #eee; margin: 20px 0; padding-top: 20px;">
+            <h4 style="margin-bottom: 15px; color: #333;">
+              <i class="fas fa-key"></i> Tạo Mật Khẩu
+            </h4>
+            <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">
+              Tài khoản của bạn chỉ có thể đăng nhập bằng Google. Tạo mật khẩu để có thể đăng nhập bằng email.
+            </p>
+
+            <div class="form-group">
+              <label for="newPasswordInput" class="form-label">Mật khẩu mới</label>
+              <input type="password" id="newPasswordInput" class="form-input" minlength="6"
+                placeholder="Ít nhất 6 ký tự">
+            </div>
+
+            <div class="form-group">
+              <label for="confirmNewPasswordInput" class="form-label">Xác nhận mật khẩu</label>
+              <input type="password" id="confirmNewPasswordInput" class="form-input" minlength="6"
+                placeholder="Nhập lại mật khẩu">
+            </div>
+
+            <button type="button" id="createPasswordBtn" class="submit-btn small-btn"
+              style="background-color: #10b981;">
+              <i class="fas fa-plus-circle"></i> Tạo mật khẩu
+            </button>
+          </div>
+
           <div style="border-top: 1px solid #eee; margin: 20px 0; padding-top: 20px;">
             <!-- Thêm id="labelSecurity" -->
             <h4 style="margin-bottom: 15px; color: #333;" id="labelSecurity">Bảo mật</h4>

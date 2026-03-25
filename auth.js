@@ -164,6 +164,7 @@ registerForm.addEventListener('submit', async (e) => {
     const password = document.getElementById('registerPassword').value;
     const confirmPassword = document.getElementById('registerConfirmPassword').value;
     
+    // ✅ VALIDATION (giữ nguyên code cũ)
     if (!name || !email || !password || !confirmPassword) {
         showError('Vui lòng điền đầy đủ thông tin!');
         return;
@@ -197,11 +198,13 @@ registerForm.addEventListener('submit', async (e) => {
     hideError();
     
     try {
+        // ✅ KIỂM TRA EMAIL TỒN TẠI
         const signInMethods = await auth.fetchSignInMethodsForEmail(email);
         
         if (signInMethods.length > 0) {
             if (signInMethods.includes('google.com')) {
-                showError('⚠️ Email này đã đăng ký bằng Google! Vui lòng nhấn nút "Tiếp tục với Google" để đăng nhập.', 'warning');
+                // ✅ ĐÃ CÓ GOOGLE → CHO PHÉP THÊM PASSWORD
+                showError('⚠️ Email này đã đăng ký bằng Google! Bạn vẫn có thể tạo mật khẩu. Hãy đăng nhập bằng Google trước, sau đó vào Cài đặt để tạo mật khẩu.', 'warning');
             } else {
                 showError('⚠️ Email này đã được đăng ký! Vui lòng đăng nhập hoặc sử dụng email khác.', 'warning');
             }
@@ -209,6 +212,7 @@ registerForm.addEventListener('submit', async (e) => {
             return;
         }
 
+        // ✅ TẠO TÀI KHOẢN MỚI
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
         const user = userCredential.user;
         
@@ -216,12 +220,13 @@ registerForm.addEventListener('submit', async (e) => {
             displayName: name
         });
         
+        // ✅ TẠO USER DOCUMENT VỚI PROVIDERS ARRAY
         await db.collection('users').doc(user.uid).set({
             name: name,
             email: email,
             email_lowercase: email.toLowerCase(),
             photoURL: null,
-            provider: 'password',
+            providers: ['password'], // ⬅️ LƯU DẠNG ARRAY
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             settings: {
                 language: 'vi',
@@ -267,7 +272,7 @@ registerForm.addEventListener('submit', async (e) => {
 });
 
 // ==========================================
-// GOOGLE SIGN-IN
+// GOOGLE SIGN-IN (HỖ TRỢ LINK VỚI PASSWORD)
 // ==========================================
 document.getElementById('googleLogin').addEventListener('click', async () => {
     showLoading();
@@ -281,16 +286,46 @@ document.getElementById('googleLogin').addEventListener('click', async () => {
         const result = await auth.signInWithPopup(provider);
         const user = result.user;
         
+        // ✅ BƯỚC 1: KIỂM TRA CÁC PHƯƠNG THỨC ĐĂNG NHẬP CỦA EMAIL
+        const signInMethods = await auth.fetchSignInMethodsForEmail(user.email);
+        
+        // ✅ BƯỚC 2: XỬ LÝ LINK VỚI PASSWORD (NẾU ĐÃ CÓ)
+        if (signInMethods.includes('password') && !signInMethods.includes('google.com')) {
+            try {
+                // ✅ TẠO GOOGLE CREDENTIAL
+                const credential = firebase.auth.GoogleAuthProvider.credential(
+                    result.credential.idToken,
+                    result.credential.accessToken
+                );
+                
+                // ✅ LINK CREDENTIAL VỚI ACCOUNT HIỆN TẠI
+                await user.linkWithCredential(credential);
+                
+                showError('✅ Đã liên kết tài khoản Google với Email/Password! Bạn có thể dùng cả 2 cách đăng nhập.', 'success');
+            } catch (linkError) {
+                // ✅ NẾU LINK THẤT BẠI (RẤT ÍT KHI XẢY RA)
+                if (linkError.code === 'auth/credential-already-in-use') {
+                    // Credential đã được dùng bởi user khác (edge case)
+                    showError('⚠️ Đăng nhập thành công nhưng không thể liên kết do xung đột tài khoản.', 'warning');
+                } else {
+                    // Các lỗi khác
+                    showError('⚠️ Đăng nhập thành công nhưng chưa liên kết được với password.', 'warning');
+                }
+            }
+        }
+        
+        // ✅ BƯỚC 3: CẬP NHẬT/TẠO USER DOCUMENT TRONG FIRESTORE
         const userDocRef = db.collection('users').doc(user.uid);
         const userDoc = await userDocRef.get();
         
         if (!userDoc.exists) {
+            // ✅ TRƯỜNG HỢP 1: USER MỚI HOÀN TOÀN (LẦN ĐẦU ĐĂNG NHẬP GOOGLE)
             await userDocRef.set({
                 name: user.displayName || 'User',
                 email: user.email,
                 email_lowercase: user.email.toLowerCase(),
                 photoURL: user.photoURL || null,
-                provider: 'google',
+                providers: ['google.com'], // ⬅️ LƯU DẠNG ARRAY
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                 settings: {
                     language: 'vi',
@@ -301,18 +336,40 @@ document.getElementById('googleLogin').addEventListener('click', async () => {
                 }
             });
         } else {
+            // ✅ TRƯỜNG HỢP 2: USER ĐÃ TỒN TẠI (CẬP NHẬT PROVIDERS)
             const userData = userDoc.data();
-            const providers = userData.provider ? 
-                (Array.isArray(userData.provider) ? userData.provider : [userData.provider]) : [];
+            let providers = [];
             
-            if (!providers.includes('google')) {
-                providers.push('google');
-                await userDocRef.update({ provider: providers });
+            // ✅ XỬ LÝ PROVIDERS CŨ (CHUYỂN ĐỔI TỪ STRING SANG ARRAY)
+            if (userData.providers && Array.isArray(userData.providers)) {
+                // Đã là array rồi
+                providers = userData.providers;
+            } else if (userData.provider) {
+                // Format cũ: provider (string) → chuyển sang providers (array)
+                if (Array.isArray(userData.provider)) {
+                    providers = userData.provider;
+                } else {
+                    providers = [userData.provider];
+                }
             }
+            
+            // ✅ THÊM 'google.com' NẾU CHƯA CÓ
+            if (!providers.includes('google.com')) {
+                providers.push('google.com');
+            }
+            
+            // ✅ CẬP NHẬT FIRESTORE
+            await userDocRef.update({ 
+                providers: providers,
+                photoURL: user.photoURL || userData.photoURL || null,
+                name: user.displayName || userData.name
+            });
         }
         
+        // ✅ BƯỚC 4: HIỂN thị THÔNG BÁO THÀNH CÔNG
         showError('✅ Đăng nhập thành công! Đang chuyển hướng...', 'success');
         
+        // ✅ BƯỚC 5: CHUYỂN HƯỚNG SAU 1 GIÂY
         setTimeout(() => {
             window.location.href = 'index.html';
         }, 1000);
@@ -320,16 +377,41 @@ document.getElementById('googleLogin').addEventListener('click', async () => {
     } catch (error) {
         hideLoading();
         
+        // ✅ XỬ LÝ CÁC LOẠI LỖI ĐẶC BIỆT
+        
+        // LỖI 1: ACCOUNT ĐÃ TỒN TẠI VỚI PROVIDER KHÁC (RẤT QUAN TRỌNG)
+        if (error.code === 'auth/account-exists-with-different-credential') {
+            showError('⚠️ Email này đã đăng ký bằng Email/Password. Vui lòng đăng nhập bằng mật khẩu trước, sau đó vào Hồ sơ để liên kết với Google.', 'warning');
+            return;
+        }
+        
+        // LỖI 2: CREDENTIAL ĐÃ ĐƯỢC SỬ DỤNG BỞI USER KHÁC
+        if (error.code === 'auth/credential-already-in-use') {
+            showError('✅ Đăng nhập thành công!', 'success');
+            setTimeout(() => window.location.href = 'index.html', 1000);
+            return;
+        }
+        
+        // LỖI 3: USER ĐÓNG POPUP
         if (error.code === 'auth/popup-closed-by-user') {
             showError('⚠️ Bạn đã đóng cửa sổ đăng nhập!', 'warning');
-        } else if (error.code === 'auth/popup-blocked') {
+            return;
+        }
+        
+        // LỖI 4: TRÌNH DUYỆT CHẶN POPUP
+        if (error.code === 'auth/popup-blocked') {
             showError('❌ Trình duyệt chặn popup! Vui lòng cho phép popup cho trang này.', 'error');
-        } else if (error.code === 'auth/cancelled-popup-request') {
+            return;
+        }
+        
+        // LỖI 5: HỦY YÊU CẦU POPUP
+        if (error.code === 'auth/cancelled-popup-request') {
             hideLoading();
             return;
-        } else {
-            showError(`❌ ${getErrorMessage(error.code)}`, 'error');
         }
+        
+        // LỖI 6: CÁC LỖI KHÁC
+        showError(`❌ ${getErrorMessage(error.code)}`, 'error');
     }
 });
 
