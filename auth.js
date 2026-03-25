@@ -62,6 +62,9 @@ document.querySelectorAll('.toggle-password').forEach(btn => {
 // ==========================================
 // LOGIN
 // ==========================================
+// ==========================================
+// LOGIN - SỬA LẠI LOGIC KIỂM TRA
+// ==========================================
 loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -90,20 +93,28 @@ loginForm.addEventListener('submit', async (e) => {
         
         await auth.setPersistence(persistence);
         
+        // ✅ BƯỚC 1: Kiểm tra email có tồn tại không
         const signInMethods = await auth.fetchSignInMethodsForEmail(email);
         
         if (signInMethods.length === 0) {
-            showError('❌ Tài khoản này chưa được đăng ký! Vui lòng đăng ký trước.', 'error');
+            showError('❌ Email này chưa được đăng ký! Vui lòng đăng ký trước.', 'error');
             hideLoading();
             return;
         }
 
-        if (signInMethods.includes('google.com') && !signInMethods.includes('password')) {
-            showError('⚠️ Tài khoản này đã đăng ký bằng Google. Vui lòng nhấn nút "Tiếp tục với Google" để đăng nhập.', 'warning');
+        // ✅ BƯỚC 2: Kiểm tra xem có password method không
+        const hasPassword = signInMethods.includes('password');
+        const hasGoogle = signInMethods.includes('google.com');
+
+        // ✅ BƯỚC 3: Xử lý các trường hợp
+        if (!hasPassword && hasGoogle) {
+            // TH1: Chỉ có Google, chưa tạo password
+            showError('⚠️ Tài khoản này chỉ có thể đăng nhập bằng Google. Vui lòng đăng nhập Google trước, sau đó vào Hồ sơ để tạo mật khẩu.', 'warning');
             hideLoading();
             return;
         }
 
+        // ✅ BƯỚC 4: Thử đăng nhập bằng password
         await auth.signInWithEmailAndPassword(email, password);
         
         showError('✅ Đăng nhập thành công! Đang chuyển hướng...', 'success');
@@ -152,6 +163,7 @@ loginForm.addEventListener('submit', async (e) => {
         }
     }
 });
+
 
 // ==========================================
 // REGISTER

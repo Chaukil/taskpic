@@ -685,49 +685,60 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (profileBtn) {
-        // Chuyển thành async để đợi lấy dữ liệu từ DB
         profileBtn.addEventListener("click", async () => {
-            // Ẩn dropdown menu trước
             if (userDropdown) userDropdown.style.display = 'none';
-
             if (!currentUser) return;
 
             profileModal.classList.add("active");
             document.body.style.overflow = "hidden";
 
-            // 1. Điền Email (Luôn có)
             profileEmailInput.value = currentUser.email;
 
-            // 2. Xử lý hiển thị Tên (Ưu tiên lấy từ Firestore để chính xác nhất)
             try {
-                // Hiện loading tạm thời hoặc tên cũ trong khi đợi
-                profileNameInput.value = currentUser.displayName || "Đang tải...";
-
-                // Lấy dữ liệu mới nhất từ Firestore
                 const userDoc = await db.collection('users').doc(currentUser.uid).get();
-
                 if (userDoc.exists) {
                     const userData = userDoc.data();
-                    // Ưu tiên tên trong DB > tên trong Auth > Rỗng
                     profileNameInput.value = userData.name || currentUser.displayName || "";
+
+                    // ✅ KIỂM TRA PROVIDERS TỪ FIRESTORE (CHÍNH XÁC HƠN)
+                    let providers = userData.providers || [];
+
+                    // ✅ Xử lý trường hợp cũ (provider là string)
+                    if (!Array.isArray(providers)) {
+                        providers = [providers];
+                    }
+
+                    const hasPassword = providers.includes('password');
+                    const hasGoogle = providers.includes('google.com');
+
+                    // ✅ HIỂN THỊ/ẨN PHẦN TẠO MẬT KHẨU
+                    const createPasswordSection = document.getElementById('createPasswordSection');
+                    if (createPasswordSection) {
+                        // Chỉ hiện khi CHƯA CÓ PASSWORD
+                        createPasswordSection.style.display = hasPassword ? 'none' : 'block';
+                    }
+
+                    // ✅ HIỂN THỊ/ẨN PHẦN LIÊN KẾT GOOGLE (NẾU BẠN MUỐN)
+                    const linkGoogleSection = document.getElementById('linkGoogleSection');
+                    if (linkGoogleSection) {
+                        // Chỉ hiện khi CHƯA CÓ GOOGLE
+                        linkGoogleSection.style.display = hasGoogle ? 'none' : 'block';
+                    }
+
                 } else {
-                    // Nếu không có trong DB, dùng tên Auth
                     profileNameInput.value = currentUser.displayName || "";
                 }
             } catch (error) {
+                console.error("Error loading profile:", error);
                 profileNameInput.value = currentUser.displayName || "";
             }
 
-            // 3. Format ngày tham gia
             if (currentUser.metadata && currentUser.metadata.creationTime) {
                 const date = new Date(currentUser.metadata.creationTime);
-                const lang = translations[currentLanguage];
-                // Format ngày theo ngôn ngữ
                 const locale = currentLanguage === 'vi' ? 'vi-VN' : 'en-US';
                 profileJoinedInput.value = date.toLocaleDateString(locale);
             }
 
-            // 4. Hiển thị Avatar
             if (currentUser.photoURL) {
                 profileAvatarDisplay.innerHTML = `<img src="${currentUser.photoURL}" style="width: 100%; height: 100%; object-fit: cover;">`;
             } else {
@@ -735,6 +746,7 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
     }
+
 
 
     // Đóng Modal Hồ sơ
@@ -4261,54 +4273,55 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    // ==========================================
-    // THÊM UI TẠO MẬT KHẨU VÀO PROFILE MODAL
-    // ==========================================
-    if (profileBtn) {
-        profileBtn.addEventListener("click", async () => {
-            if (userDropdown) userDropdown.style.display = 'none';
-            if (!currentUser) return;
-
-            profileModal.classList.add("active");
-            document.body.style.overflow = "hidden";
-
-            profileEmailInput.value = currentUser.email;
+    const linkGoogleBtn = document.getElementById('linkGoogleBtn');
+    if (linkGoogleBtn) {
+        linkGoogleBtn.addEventListener('click', async () => {
+            if (!currentUser) {
+                showToast('Vui lòng đăng nhập trước!', 'error');
+                return;
+            }
 
             try {
-                const userDoc = await db.collection('users').doc(currentUser.uid).get();
-                if (userDoc.exists) {
-                    const userData = userDoc.data();
-                    profileNameInput.value = userData.name || currentUser.displayName || "";
+                // Hiện loading
+                linkGoogleBtn.disabled = true;
+                linkGoogleBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Đang liên kết...';
 
-                    // ✅ KIỂM TRA ĐÃ CÓ PASSWORD CHƯA
-                    const signInMethods = await auth.fetchSignInMethodsForEmail(currentUser.email);
-                    const hasPassword = signInMethods.includes('password');
+                const provider = new firebase.auth.GoogleAuthProvider();
 
-                    // ✅ HIỂN THỊ/ẨN NÚT TẠO MẬT KHẨU
-                    const createPasswordSection = document.getElementById('createPasswordSection');
-                    if (createPasswordSection) {
-                        createPasswordSection.style.display = hasPassword ? 'none' : 'block';
-                    }
-                } else {
-                    profileNameInput.value = currentUser.displayName || "";
+                // Link credential
+                await currentUser.linkWithPopup(provider);
+
+                // Cập nhật providers trong Firestore
+                const userDocRef = db.collection('users').doc(currentUser.uid);
+                const userDoc = await userDocRef.get();
+                const userData = userDoc.data();
+                let providers = userData.providers || [];
+
+                if (!providers.includes('google.com')) {
+                    providers.push('google.com');
+                    await userDocRef.update({ providers: providers });
                 }
+
+                showToast('✅ Đã liên kết với Google thành công! Bạn có thể đăng nhập bằng cả 2 phương thức.', 'success');
+
+                // Ẩn section
+                document.getElementById('linkGoogleSection').style.display = 'none';
+
             } catch (error) {
-                profileNameInput.value = currentUser.displayName || "";
-            }
-
-            if (currentUser.metadata && currentUser.metadata.creationTime) {
-                const date = new Date(currentUser.metadata.creationTime);
-                const locale = currentLanguage === 'vi' ? 'vi-VN' : 'en-US';
-                profileJoinedInput.value = date.toLocaleDateString(locale);
-            }
-
-            if (currentUser.photoURL) {
-                profileAvatarDisplay.innerHTML = `<img src="${currentUser.photoURL}" style="width: 100%; height: 100%; object-fit: cover;">`;
-            } else {
-                profileAvatarDisplay.innerHTML = `<i class="fas fa-user"></i>`;
+                if (error.code === 'auth/credential-already-in-use') {
+                    showToast('⚠️ Tài khoản Google này đã được liên kết với tài khoản khác!', 'warning');
+                } else if (error.code === 'auth/popup-closed-by-user') {
+                    showToast('⚠️ Bạn đã đóng cửa sổ xác thực!', 'warning');
+                } else {
+                    showToast('❌ Lỗi liên kết: ' + error.message, 'error');
+                }
+            } finally {
+                linkGoogleBtn.disabled = false;
+                linkGoogleBtn.innerHTML = '<i class="fab fa-google"></i> Liên kết với Google';
             }
         });
     }
+
 
     // ==========================================
     // EVENT: TẠO MẬT KHẨU TỪ GOOGLE ACCOUNT
