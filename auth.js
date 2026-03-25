@@ -65,9 +65,20 @@ document.querySelectorAll('.toggle-password').forEach(btn => {
 loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const email = document.getElementById('loginEmail').value;
+    const email = document.getElementById('loginEmail').value.trim();
     const password = document.getElementById('loginPassword').value;
     const rememberMe = document.getElementById('rememberMe').checked;
+    
+    if (!email || !password) {
+        showError('Vui lòng nhập đầy đủ email và mật khẩu!');
+        return;
+    }
+
+    if (!validateEmail(email)) {
+        showError('Email không hợp lệ!');
+        document.getElementById('loginEmail').focus();
+        return;
+    }
     
     showLoading();
     hideError();
@@ -78,15 +89,67 @@ loginForm.addEventListener('submit', async (e) => {
             : firebase.auth.Auth.Persistence.SESSION;
         
         await auth.setPersistence(persistence);
+        
+        const signInMethods = await auth.fetchSignInMethodsForEmail(email);
+        
+        if (signInMethods.length === 0) {
+            showError('❌ Tài khoản này chưa được đăng ký! Vui lòng đăng ký trước.', 'error');
+            hideLoading();
+            return;
+        }
+
+        if (signInMethods.includes('google.com') && !signInMethods.includes('password')) {
+            showError('⚠️ Tài khoản này đã đăng ký bằng Google. Vui lòng nhấn nút "Tiếp tục với Google" để đăng nhập.', 'warning');
+            hideLoading();
+            return;
+        }
+
         await auth.signInWithEmailAndPassword(email, password);
         
-        window.location.href = 'index.html';
+        showError('✅ Đăng nhập thành công! Đang chuyển hướng...', 'success');
+        
+        setTimeout(() => {
+            window.location.href = 'index.html';
+        }, 1000);
         
     } catch (error) {
-        console.error('Login error:', error);
-        showError(getErrorMessage(error.code));
-    } finally {
         hideLoading();
+
+        switch(error.code) {
+            case 'auth/wrong-password':
+                showError('❌ Mật khẩu không chính xác! Vui lòng thử lại hoặc nhấn "Quên mật khẩu".', 'error');
+                document.getElementById('loginPassword').value = '';
+                document.getElementById('loginPassword').focus();
+                break;
+                
+            case 'auth/user-not-found':
+                showError('❌ Tài khoản này chưa được đăng ký! Vui lòng đăng ký trước.', 'error');
+                break;
+                
+            case 'auth/invalid-email':
+                showError('❌ Email không hợp lệ!', 'error');
+                document.getElementById('loginEmail').focus();
+                break;
+                
+            case 'auth/user-disabled':
+                showError('❌ Tài khoản này đã bị vô hiệu hóa. Vui lòng liên hệ hỗ trợ.', 'error');
+                break;
+                
+            case 'auth/too-many-requests':
+                showError('⚠️ Quá nhiều lần đăng nhập sai! Vui lòng thử lại sau 5 phút hoặc đặt lại mật khẩu.', 'warning');
+                break;
+                
+            case 'auth/network-request-failed':
+                showError('❌ Lỗi kết nối mạng! Vui lòng kiểm tra internet.', 'error');
+                break;
+                
+            case 'auth/invalid-credential':
+                showError('❌ Thông tin đăng nhập không hợp lệ! Vui lòng kiểm tra lại email và mật khẩu.', 'error');
+                break;
+                
+            default:
+                showError(`❌ Lỗi đăng nhập: ${getErrorMessage(error.code)}`, 'error');
+        }
     }
 });
 
@@ -96,18 +159,37 @@ loginForm.addEventListener('submit', async (e) => {
 registerForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const name = document.getElementById('registerName').value;
-    const email = document.getElementById('registerEmail').value;
+    const name = document.getElementById('registerName').value.trim();
+    const email = document.getElementById('registerEmail').value.trim();
     const password = document.getElementById('registerPassword').value;
     const confirmPassword = document.getElementById('registerConfirmPassword').value;
     
+    if (!name || !email || !password || !confirmPassword) {
+        showError('Vui lòng điền đầy đủ thông tin!');
+        return;
+    }
+
+    if (name.length < 2) {
+        showError('Tên phải có ít nhất 2 ký tự!');
+        document.getElementById('registerName').focus();
+        return;
+    }
+
+    if (!validateEmail(email)) {
+        showError('Email không hợp lệ!');
+        document.getElementById('registerEmail').focus();
+        return;
+    }
+    
     if (password !== confirmPassword) {
         showError('Mật khẩu xác nhận không khớp!');
+        document.getElementById('registerConfirmPassword').focus();
         return;
     }
     
     if (password.length < 6) {
         showError('Mật khẩu phải có ít nhất 6 ký tự!');
+        document.getElementById('registerPassword').focus();
         return;
     }
     
@@ -115,6 +197,18 @@ registerForm.addEventListener('submit', async (e) => {
     hideError();
     
     try {
+        const signInMethods = await auth.fetchSignInMethodsForEmail(email);
+        
+        if (signInMethods.length > 0) {
+            if (signInMethods.includes('google.com')) {
+                showError('⚠️ Email này đã đăng ký bằng Google! Vui lòng nhấn nút "Tiếp tục với Google" để đăng nhập.', 'warning');
+            } else {
+                showError('⚠️ Email này đã được đăng ký! Vui lòng đăng nhập hoặc sử dụng email khác.', 'warning');
+            }
+            hideLoading();
+            return;
+        }
+
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
         const user = userCredential.user;
         
@@ -127,6 +221,7 @@ registerForm.addEventListener('submit', async (e) => {
             email: email,
             email_lowercase: email.toLowerCase(),
             photoURL: null,
+            provider: 'password',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             settings: {
                 language: 'vi',
@@ -139,16 +234,35 @@ registerForm.addEventListener('submit', async (e) => {
         
         await user.sendEmailVerification();
         
-        showError('Đăng ký thành công! Email xác thực đã được gửi.', 'success');
+        showError('✅ Đăng ký thành công! Email xác thực đã được gửi. Đang chuyển hướng...', 'success');
         
         setTimeout(() => {
             window.location.href = 'index.html';
         }, 2000);
         
     } catch (error) {
-        console.error('Registration error:', error);
-        showError(getErrorMessage(error.code));
         hideLoading();
+
+        switch(error.code) {
+            case 'auth/email-already-in-use':
+                showError('⚠️ Email này đã được sử dụng! Vui lòng đăng nhập hoặc dùng email khác.', 'warning');
+                break;
+                
+            case 'auth/invalid-email':
+                showError('❌ Email không hợp lệ!', 'error');
+                break;
+                
+            case 'auth/weak-password':
+                showError('❌ Mật khẩu quá yếu! Vui lòng dùng ít nhất 6 ký tự.', 'error');
+                break;
+                
+            case 'auth/network-request-failed':
+                showError('❌ Lỗi kết nối mạng! Vui lòng kiểm tra internet.', 'error');
+                break;
+                
+            default:
+                showError(`❌ Lỗi đăng ký: ${getErrorMessage(error.code)}`, 'error');
+        }
     }
 });
 
@@ -167,15 +281,14 @@ document.getElementById('googleLogin').addEventListener('click', async () => {
         const result = await auth.signInWithPopup(provider);
         const user = result.user;
         
-        // Check if user document exists
-        const userDoc = await db.collection('users').doc(user.uid).get();
+        const userDocRef = db.collection('users').doc(user.uid);
+        const userDoc = await userDocRef.get();
         
         if (!userDoc.exists) {
-            // Create new user document for Google sign-in users
-            await db.collection('users').doc(user.uid).set({
+            await userDocRef.set({
                 name: user.displayName || 'User',
                 email: user.email,
-                 email_lowercase: user.email.toLowerCase(),
+                email_lowercase: user.email.toLowerCase(),
                 photoURL: user.photoURL || null,
                 provider: 'google',
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -187,26 +300,36 @@ document.getElementById('googleLogin').addEventListener('click', async () => {
                     notificationTimeBefore: 5
                 }
             });
+        } else {
+            const userData = userDoc.data();
+            const providers = userData.provider ? 
+                (Array.isArray(userData.provider) ? userData.provider : [userData.provider]) : [];
+            
+            if (!providers.includes('google')) {
+                providers.push('google');
+                await userDocRef.update({ provider: providers });
+            }
         }
         
-        window.location.href = 'index.html';
+        showError('✅ Đăng nhập thành công! Đang chuyển hướng...', 'success');
+        
+        setTimeout(() => {
+            window.location.href = 'index.html';
+        }, 1000);
         
     } catch (error) {
-        console.error('Google login error:', error);
+        hideLoading();
         
         if (error.code === 'auth/popup-closed-by-user') {
-            showError('Bạn đã đóng cửa sổ đăng nhập!');
+            showError('⚠️ Bạn đã đóng cửa sổ đăng nhập!', 'warning');
         } else if (error.code === 'auth/popup-blocked') {
-            showError('Trình duyệt chặn popup! Vui lòng cho phép popup cho trang này.');
+            showError('❌ Trình duyệt chặn popup! Vui lòng cho phép popup cho trang này.', 'error');
         } else if (error.code === 'auth/cancelled-popup-request') {
-            // User cancelled, do nothing
             hideLoading();
             return;
         } else {
-            showError(getErrorMessage(error.code));
+            showError(`❌ ${getErrorMessage(error.code)}`, 'error');
         }
-        
-        hideLoading();
     }
 });
 
@@ -216,10 +339,17 @@ document.getElementById('googleLogin').addEventListener('click', async () => {
 document.getElementById('forgotPasswordLink').addEventListener('click', async (e) => {
     e.preventDefault();
     
-    const email = document.getElementById('loginEmail').value;
+    const email = document.getElementById('loginEmail').value.trim();
     
     if (!email) {
-        showError('Vui lòng nhập email để reset mật khẩu!');
+        showError('Vui lòng nhập email để reset mật khẩu!', 'warning');
+        document.getElementById('loginEmail').focus();
+        return;
+    }
+
+    if (!validateEmail(email)) {
+        showError('Email không hợp lệ!', 'error');
+        document.getElementById('loginEmail').focus();
         return;
     }
     
@@ -227,11 +357,29 @@ document.getElementById('forgotPasswordLink').addEventListener('click', async (e
     hideError();
     
     try {
+        const signInMethods = await auth.fetchSignInMethodsForEmail(email);
+        
+        if (signInMethods.length === 0) {
+            showError('❌ Email này chưa được đăng ký!', 'error');
+            hideLoading();
+            return;
+        }
+
+        if (signInMethods.includes('google.com') && !signInMethods.includes('password')) {
+            showError('⚠️ Tài khoản này chỉ đăng nhập bằng Google, không cần mật khẩu!', 'warning');
+            hideLoading();
+            return;
+        }
+
         await auth.sendPasswordResetEmail(email);
-        showError('Email reset mật khẩu đã được gửi! Kiểm tra hộp thư của bạn.', 'success');
+        showError('✅ Email reset mật khẩu đã được gửi! Kiểm tra hộp thư của bạn.', 'success');
     } catch (error) {
-        console.error('Reset password error:', error);
-        showError(getErrorMessage(error.code));
+        
+        if (error.code === 'auth/user-not-found') {
+            showError('❌ Không tìm thấy tài khoản với email này!', 'error');
+        } else {
+            showError(`❌ ${getErrorMessage(error.code)}`, 'error');
+        }
     } finally {
         hideLoading();
     }
@@ -240,14 +388,16 @@ document.getElementById('forgotPasswordLink').addEventListener('click', async (e
 // ==========================================
 // HELPER FUNCTIONS
 // ==========================================
+function validateEmail(email) {
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return regex.test(email);
+}
+
 function showLoading() {
-    // Tìm nút submit trong form đang hiển thị (active)
     const activeSubmitBtn = document.querySelector('.auth-form.active button[type="submit"]');
     const googleBtn = document.getElementById('googleLogin');
 
-    // Hiệu ứng cho nút Submit (Đăng nhập/Đăng ký)
     if (activeSubmitBtn) {
-        // Lưu text gốc vào data attribute để khôi phục sau
         activeSubmitBtn.dataset.originalText = activeSubmitBtn.innerHTML;
         activeSubmitBtn.disabled = true;
         activeSubmitBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Đang xử lý...';
@@ -255,7 +405,6 @@ function showLoading() {
         activeSubmitBtn.style.cursor = 'not-allowed';
     }
 
-    // Disable nút Google để tránh click đúp
     if (googleBtn) {
         googleBtn.disabled = true;
         googleBtn.style.opacity = '0.6';
@@ -289,15 +438,19 @@ function showError(message, type = 'error') {
     errorMessage.textContent = message;
     errorMessage.className = 'error-message show';
     
-    if (type === 'success') {
-        errorMessage.style.background = '#d1fae5';
-        errorMessage.style.color = '#065f46';
-    } else {
-        errorMessage.style.background = '#fee2e2';
-        errorMessage.style.color = '#b91c1c';
-    }
+    // ✅ MÀU SẮC THEO LOẠI
+    const colors = {
+        success: { bg: '#d1fae5', text: '#065f46' },
+        warning: { bg: '#fef3c7', text: '#92400e' },
+        error: { bg: '#fee2e2', text: '#b91c1c' },
+        info: { bg: '#dbeafe', text: '#1e40af' }
+    };
     
-    // Auto hide after 5 seconds
+    const color = colors[type] || colors.error;
+    errorMessage.style.background = color.bg;
+    errorMessage.style.color = color.text;
+    
+    // ✅ TỰ ĐỘNG ẨN SAU 5 GIÂY (TRỪ SUCCESS)
     setTimeout(() => {
         if (type !== 'success') {
             hideError();
@@ -322,7 +475,8 @@ function getErrorMessage(errorCode) {
         'auth/network-request-failed': 'Lỗi kết nối mạng! Kiểm tra internet của bạn.',
         'auth/popup-closed-by-user': 'Bạn đã đóng cửa sổ đăng nhập!',
         'auth/cancelled-popup-request': 'Yêu cầu đăng nhập đã bị hủy.',
-        'auth/popup-blocked': 'Trình duyệt chặn popup! Vui lòng cho phép popup.'
+        'auth/popup-blocked': 'Trình duyệt chặn popup! Vui lòng cho phép popup.',
+        'auth/invalid-credential': 'Thông tin đăng nhập không hợp lệ!'
     };
     
     return errorMessages[errorCode] || 'Đã xảy ra lỗi! Vui lòng thử lại.';

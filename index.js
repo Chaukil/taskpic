@@ -182,6 +182,49 @@ document.addEventListener("DOMContentLoaded", function () {
         startMainApp();
     }
 
+    // ==========================================
+    // LINK GOOGLE ACCOUNT VỚI PASSWORD
+    // ==========================================
+    async function linkGoogleWithPassword() {
+        if (!currentUser) return;
+
+        try {
+            const userDoc = await db.collection('users').doc(currentUser.uid).get();
+            const userData = userDoc.data();
+            const providers = userData.provider ?
+                (Array.isArray(userData.provider) ? userData.provider : [userData.provider]) : [];
+
+            // ✅ NẾU ĐÃ CÓ GOOGLE VÀ PASSWORD → KHÔNG CẦN LÀM GÌ
+            if (providers.includes('google') && providers.includes('password')) {
+                console.log('Account already linked');
+                return;
+            }
+
+            // ✅ NẾU CHỈ CÓ GOOGLE → TỰ ĐỘNG LINK VỚI PASSWORD (NẾU USER TỰ TẠO MẬT KHẨU)
+            // (Code này chỉ để tham khảo, không tự động chạy)
+
+        } catch (error) {
+            console.error('Error checking account link:', error);
+        }
+    }
+
+    // Gọi hàm khi app khởi động
+    auth.onAuthStateChanged(async (user) => {
+        if (!user) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        currentUser = user;
+        console.log('✅ Authenticated as:', user.email);
+
+        await checkAndCreateUserDocument(user);
+        await linkGoogleWithPassword(); // ⬅️ THÊM DÒNG NÀY
+
+        initApp();
+    });
+
+
     function updateUserMenu() {
         if (currentUser) {
             if (userName) userName.textContent = currentUser.displayName || 'User';
@@ -285,11 +328,9 @@ document.addEventListener("DOMContentLoaded", function () {
                     applyClientSideFilters(); // Áp dụng filter client-side (search, overdue)
                 }
             }, (error) => {
-                console.error("Error fetching notes:", error);
                 if (error.code === 'failed-precondition') {
                     const indexUrl = error.message.match(/https:\/\/[^\s]+/)?.[0];
                     if (indexUrl) {
-                        console.error('TẠO INDEX TẠI:', indexUrl);
                         showToast('Vui lòng tạo Index Firestore (xem Console)', 'error');
                     }
                 } else {
@@ -470,7 +511,6 @@ document.addEventListener("DOMContentLoaded", function () {
             closeAddNoteModal();
 
         } catch (error) {
-            console.error("Error saving note: ", error);
             showToast('toastErrorSavingNote', 'error');
         } finally {
             submitBtn.disabled = false;
@@ -529,7 +569,6 @@ document.addEventListener("DOMContentLoaded", function () {
             addOrUpdateTagBtn.textContent = translations[currentLanguage].addTagBtn;
             editingTagId = null;
         } catch (error) {
-            console.error("Error adding/updating tag: ", error);
             showToast('toastErrorTagSave', 'error');
         }
     }
@@ -541,7 +580,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 await db.collection('notes').doc(noteToDeleteId).delete();
                 showToast('toastNoteDeleted', 'error'); // Có thể sửa thành 'success' nếu muốn màu xanh
             } catch (error) {
-                console.error("Error deleting note: ", error);
                 showToast('toastErrorDeletingNote', 'error');
             }
             closeConfirmModal();
@@ -572,7 +610,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 await db.collection('notes').doc(noteToDeleteId).delete();
                 showToast('toastNoteDeleted', 'error');
             } catch (error) {
-                console.error("Error deleting note: ", error);
                 showToast('toastErrorDeletingNote', 'error');
             }
             closeConfirmModal(); // Đóng sau khi xóa xong
@@ -594,7 +631,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     await db.collection('notes').doc(idToDelete).delete();
                     showToast('temporaryTaskDeleted', 'success');
                 } catch (error) {
-                    console.error("Error deleting temporary task:", error);
                     showToast('toastErrorDeletingNote', 'error');
                 }
             }, 500); // Đợi 500ms cho animation chạy xong rồi mới xóa data trên Firebase
@@ -643,7 +679,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 await firebase.auth().signOut();
                 window.location.href = 'login.html';
             } catch (error) {
-                console.error('Logout error:', error);
                 showToast('Lỗi khi đăng xuất!', 'error');
             }
         });
@@ -680,7 +715,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     profileNameInput.value = currentUser.displayName || "";
                 }
             } catch (error) {
-                console.error("Error fetching user profile:", error);
                 profileNameInput.value = currentUser.displayName || "";
             }
 
@@ -733,7 +767,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 document.body.style.overflow = "auto";
 
             } catch (error) {
-                console.error("Error updating profile:", error);
                 showToast("Lỗi khi cập nhật hồ sơ: " + error.message, "error");
             }
         });
@@ -749,7 +782,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 await auth.sendPasswordResetEmail(currentUser.email);
                 showToast(lang.toastResetEmailSent, "success");
             } catch (error) {
-                console.error("Error sending password reset:", error);
                 showToast(lang.toastResetEmailError + error.message, "error");
             }
         });
@@ -1690,7 +1722,6 @@ document.addEventListener("DOMContentLoaded", function () {
             onScanSuccess(text, null);
 
         } catch (err) {
-            console.error('Failed to read clipboard contents: ', err);
             showToast('clipboardError', 'error');
         }
     }
@@ -1850,7 +1881,6 @@ document.addEventListener("DOMContentLoaded", function () {
                         await db.collection('tags').doc(tagIdToDelete).delete();
                         showToast('toastTagDeleted', 'success');
                     } catch (error) {
-                        console.error("Error deleting tag: ", error);
                         showToast('toastErrorDeletingTag', 'error');
                     }
                 }
@@ -2089,7 +2119,6 @@ document.addEventListener("DOMContentLoaded", function () {
                         });
                         showToast('toastNoteCompleted', 'success');
                     } catch (error) {
-                        console.error("Error completing note: ", error);
                         showToast('toastErrorCompletingNote', 'error');
                     }
                 }
@@ -2350,7 +2379,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
             showToast(lang.subTaskUpdated, 'success');
         } catch (error) {
-            console.error('Error updating sub-task:', error);
             showToast(lang.subTaskUpdateError, 'error');
         }
     }
@@ -2470,7 +2498,6 @@ document.addEventListener("DOMContentLoaded", function () {
             onScanSuccess,
             onScanError
         ).catch(err => {
-            console.error("Camera error:", err);
             showToast('cameraPermissionDenied', 'warning');
         });
     }
@@ -2528,7 +2555,6 @@ document.addEventListener("DOMContentLoaded", function () {
             }, 1000);
 
         } catch (error) {
-            console.error("Invalid QR data parsing:", error);
             showToast('invalidQRData', 'error');
         }
     }
@@ -2773,7 +2799,6 @@ document.addEventListener("DOMContentLoaded", function () {
             showToast('qrDownloaded', 'success');
 
         } catch (error) {
-            console.error('Error downloading QR code:', error);
             showToast('qrScanError', 'error');
         }
     }
@@ -2999,7 +3024,6 @@ document.addEventListener("DOMContentLoaded", function () {
             showToast('toastNoteSaved', 'success');
             closeAddFromQRModal();
         } catch (error) {
-            console.error("Error saving note from QR: ", error);
             showToast('toastErrorSavingNote', 'error');
         }
     }
@@ -3078,7 +3102,6 @@ document.addEventListener("DOMContentLoaded", function () {
                         showToast('toastNoteReset', 'info');
                     })
                     .catch((error) => {
-                        console.error("Error uncompleting note: ", error);
                         showToast('toastErrorResettingNote', 'error');
                     });
             });
@@ -3905,7 +3928,6 @@ document.addEventListener("DOMContentLoaded", function () {
             // Thay thế {day} bằng tên ngày thực tế
             showToast(lang.completeAllSuccess.replace('{day}', dayName), 'success');
         } catch (error) {
-            console.error("Error completing all notes: ", error);
             showToast(lang.completeAllError, 'error');
         }
     }
@@ -3955,7 +3977,6 @@ document.addEventListener("DOMContentLoaded", function () {
             // Thay thế {day} bằng tên ngày
             showToast(lang.resetAllSuccess.replace('{day}', dayName), 'success');
         } catch (error) {
-            console.error("Error resetting all notes: ", error);
             showToast(lang.resetAllError, 'error');
         }
     }
@@ -4443,7 +4464,6 @@ document.addEventListener("DOMContentLoaded", function () {
             closeSendReportModal();
 
         } catch (error) {
-            console.error('Error sending report:', error);
             showToast(`❌ ${lang.errorSendingReport}: ${error.message}`, 'error');
             submitBtn.disabled = false;
             submitBtn.innerHTML = originalHTML;
@@ -4658,7 +4678,6 @@ document.addEventListener("DOMContentLoaded", function () {
             showToast(lang.reportDeleted, 'success');
             closeViewReportModal();
         } catch (error) {
-            console.error('Error deleting report:', error);
             showToast(lang.errorDeletingReport, 'error');
         }
     }
@@ -4954,7 +4973,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 });
                 showToast('toastNoteCompleted', 'success');
             } catch (error) {
-                console.error("Error completing note:", error);
                 showToast('toastErrorCompletingNote', 'error');
             }
         });
