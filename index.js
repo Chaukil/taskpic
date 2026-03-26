@@ -124,6 +124,12 @@ document.addEventListener("DOMContentLoaded", function () {
     const submittedReportsTableBody = document.getElementById('submittedReportsTableBody');
     const notSubmittedList = document.getElementById('notSubmittedList');
 
+    const timeReportPeriod = document.getElementById('timeReportPeriod');
+    const specificWeek = document.getElementById('specificWeek');
+    const specificMonth = document.getElementById('specificMonth');
+    const specificYear = document.getElementById('specificYear');
+    const refreshReportBtn = document.getElementById('refreshReportBtn');
+
     let html5QrCode = null;
     let currentQRNoteData = null;
     let currentGeneratedNote = null;
@@ -292,25 +298,23 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             // Tạo query mới
-            const query = buildNotesQuery();
+            const query = db.collection('notes').where('userId', '==', currentUser.uid);
 
             // Bật listener mới
             notesListener = query.onSnapshot((snapshot) => {
-                // ✅ XÓA TOÀN BỘ NOTES CŨ (vì đang đổi filter)
+                // Làm mới mảng notes
                 notes = [];
-                notesContainer.innerHTML = '';
 
                 snapshot.forEach((doc) => {
                     const noteData = doc.data();
                     noteData.id = doc.id;
                     notes.push(noteData);
-                    renderSingleNote(noteData); // Render từng note
                 });
 
                 notesLoaded = true;
                 if (tagsLoaded) {
-                    updateEmptyState();
-                    applyClientSideFilters(); // Áp dụng filter client-side (search, overdue)
+                    // ✅ QUAN TRỌNG: Gọi loadNotes() để tự động sắp xếp, lọc và render lại UI
+                    loadNotes();
                 }
             }, (error) => {
                 if (error.code === 'failed-precondition') {
@@ -323,6 +327,51 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
             });
         }
+
+        // Khi đổi kiểu lọc
+        if (timeReportPeriod) {
+            timeReportPeriod.addEventListener('change', () => {
+                const value = timeReportPeriod.value;
+
+                // Ẩn tất cả input cụ thể
+                specificWeek.style.display = 'none';
+                specificMonth.style.display = 'none';
+                specificYear.style.display = 'none';
+
+                // Hiện input tương ứng
+                if (value === 'specific-week') specificWeek.style.display = 'block';
+                if (value === 'specific-month') specificMonth.style.display = 'block';
+                if (value === 'specific-year') specificYear.style.display = 'block';
+
+                generateTimeReports();
+            });
+        }
+
+        if (specificWeek) specificWeek.addEventListener('change', generateTimeReports);
+        if (specificMonth) specificMonth.addEventListener('change', generateTimeReports);
+        if (specificYear) specificYear.addEventListener('change', generateTimeReports);
+        if (refreshReportBtn) refreshReportBtn.addEventListener('click', generateTimeReports);
+
+        // Khi chọn tuần/tháng/năm cụ thể
+        specificWeek.addEventListener('change', () => {
+            timeReportPeriod.value = 'specific-week';
+            generateTimeReports();
+        });
+
+        specificMonth.addEventListener('change', () => {
+            timeReportPeriod.value = 'specific-month';
+            generateTimeReports();
+        });
+
+        specificYear.addEventListener('change', () => {
+            timeReportPeriod.value = 'specific-year';
+            generateTimeReports();
+        });
+
+        // Nút làm mới
+        refreshReportBtn.addEventListener('click', () => {
+            generateTimeReports();
+        });
 
         // === FILTER CLIENT-SIDE (Search + Overdue) ===
         function applyClientSideFilters() {
@@ -364,7 +413,7 @@ document.addEventListener("DOMContentLoaded", function () {
             updateEmptyState();
         }
 
-        // === TAGS LISTENER (GIỮ NGUYÊN) ===
+        // === TAGS LISTENER ===
         tagsListener = db.collection('tags')
             .where('userId', '==', currentUser.uid)
             .orderBy('name')
@@ -382,23 +431,19 @@ document.addEventListener("DOMContentLoaded", function () {
                 renderCurrentTagsList();
 
                 if (notesLoaded) {
-                    applyClientSideFilters();
+                    // ✅ QUAN TRỌNG: Đổi từ applyClientSideFilters() thành loadNotes()
+                    loadNotes();
                 }
             });
+
 
         // === KHỞI TẠO LẦN ĐẦU ===
         initNotesListener();
         loadSettings();
         loadReceivedReports();
 
-        // === LẮG NGHE THAY ĐỔI FILTER ===
-        filterSelect.addEventListener('change', () => {
-            initNotesListener(); // Tạo lại query mới
-        });
-
-        dayOfWeekSelect.addEventListener('change', () => {
-            initNotesListener(); // Tạo lại query mới
-        });
+        filterSelect.addEventListener('change', loadNotes);
+        dayOfWeekSelect.addEventListener('change', loadNotes);
 
         // === SEARCH (CHỈ LỌC CLIENT-SIDE) ===
         let searchTimeout;
@@ -406,13 +451,13 @@ document.addEventListener("DOMContentLoaded", function () {
         searchInput._searchHandler = () => {
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
-                applyClientSideFilters();
+                // ✅ QUAN TRỌNG: Đổi từ applyClientSideFilters() thành loadNotes()
+                loadNotes();
             }, 300);
         };
         searchInput.addEventListener('input', searchInput._searchHandler);
+
     }
-
-
 
     async function handleNoteSubmit(e) {
         e.preventDefault();
@@ -660,11 +705,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
+            const lang = translations[currentLanguage]; // MỚI
             try {
                 await firebase.auth().signOut();
                 window.location.href = 'login.html';
             } catch (error) {
-                showToast('Lỗi khi đăng xuất!', 'error');
+                showToast(lang.logoutError, 'error');
             }
         });
     }
@@ -833,10 +879,10 @@ document.addEventListener("DOMContentLoaded", function () {
             'saveNoteBtn': 'Lưu ghi chú',
             'updateNoteBtn': 'Cập nhật',
             'viewNoteModalTitlePlaceholder': '',
-            'viewNoteTagLabel': 'Thẻ:',
-            'viewNoteStatusLabel': 'Trạng thái:',
-            'viewNoteTimeLabel': 'Thời gian:',
-            'viewNoteContentLabel': 'Nội dung:',
+            'viewNoteTagLabel': 'Thẻ',
+            'viewNoteStatusLabel': 'Trạng thái',
+            'viewNoteTimeLabel': 'Thời gian',
+            'viewNoteContentLabel': 'Nội dung',
             'completedStatus': 'Đã hoàn thành',
             'incompleteStatus': 'Chưa hoàn thành',
             'uncompleteBtn': 'Chưa hoàn thành',
@@ -911,7 +957,7 @@ document.addEventListener("DOMContentLoaded", function () {
             'qrScannerTitle': 'Quét mã QR ghi chú',
             'qrGeneratorTitle': 'Mã QR của ghi chú',
             'addFromQRTitle': 'Xác nhận thêm ghi chú',
-            'timeReportsModalTitle': 'Báo cáo thời gian tuần này',
+            'timeReportsModalTitle': 'Báo cáo thời gian',
             'totalTasksText': 'Tổng số task',
             'onTimeTasksText': 'Hoàn thành đúng hạn',
             'lateTasksText': 'Hoàn thành trễ',
@@ -1060,6 +1106,46 @@ document.addEventListener("DOMContentLoaded", function () {
             'yes': 'Có',
             'no': 'Không',
             'temporaryNotesOption': 'Công việc tạm thời',
+            'loadingText': 'Đang tải...',
+            'createPasswordTitle': 'Tạo Mật Khẩu',
+            'createPasswordDesc': 'Tài khoản của bạn chỉ có thể đăng nhập bằng Google. Tạo mật khẩu để có thể đăng nhập bằng email.',
+            'newPasswordLabel': 'Mật khẩu mới',
+            'newPasswordPlaceholder': 'Ít nhất 6 ký tự',
+            'confirmPasswordLabel': 'Xác nhận mật khẩu',
+            'confirmPasswordPlaceholder': 'Nhập lại mật khẩu',
+            'createPasswordBtnText': 'Tạo mật khẩu',
+            'linkGoogleTitle': 'Liên kết tài khoản Google',
+            'linkGoogleDesc': 'Thêm phương thức đăng nhập bằng Google để dễ dàng truy cập tài khoản.',
+            'linkGoogleBtnText': 'Liên kết với Google',
+            'welcomeNewUser': 'Chào mừng {name}! Đã tạo hồ sơ cho bạn.',
+            'pleaseLoginFirst': 'Vui lòng đăng nhập trước!',
+            'accountHasPassword': 'Tài khoản đã có mật khẩu rồi!',
+            'passwordCreatedSuccess': 'Đã tạo mật khẩu thành công! Bạn có thể đăng nhập bằng email/password.',
+            'weakPassword': 'Mật khẩu quá yếu! Vui lòng dùng ít nhất 6 ký tự.',
+            'emailHasPassword': 'Email này đã có mật khẩu!',
+            'errorCreatingPassword': 'Lỗi tạo mật khẩu: ',
+            'linkingGoogle': 'Đang liên kết...',
+            'googleLinkedSuccess': 'Đã liên kết với Google thành công! Bạn có thể đăng nhập bằng cả 2 phương thức.',
+            'googleAlreadyLinked': 'Tài khoản Google này đã được liên kết với tài khoản khác!',
+            'authPopupClosed': 'Bạn đã đóng cửa sổ xác thực!',
+            'errorLinking': 'Lỗi liên kết: ',
+            'logoutError': 'Lỗi khi đăng xuất!',
+            'filterByPeriod': 'Lọc theo:',
+            'thisWeek': 'Tuần này',
+            'thisMonth': 'Tháng này',
+            'thisYear': 'Năm này',
+            'allTime': 'Tất cả',
+            'specificWeek': 'Chọn tuần...',
+            'specificMonth': 'Chọn tháng...',
+            'specificYear': 'Chọn năm...',
+            'refreshBtn': 'Làm mới',
+            'weekText': 'Tuần',
+            'monthText': 'Tháng',
+            'yearText': 'Năm',
+            'avgTimeDiffText': 'TB Tiết kiệm/Vượt (phút)',
+            'taskCountText': 'Số lượng Task',
+            'minutesAxisText': 'Phút (Tiết kiệm > 0 | Vượt < 0)',
+
         },
         'en': {
             'appNameLabel': 'App Name:',
@@ -1105,10 +1191,10 @@ document.addEventListener("DOMContentLoaded", function () {
             'saveNoteBtn': 'Save Note',
             'updateNoteBtn': 'Update',
             'viewNoteModalTitlePlaceholder': '',
-            'viewNoteTagLabel': 'Tag:',
-            'viewNoteStatusLabel': 'Status:',
-            'viewNoteTimeLabel': 'Time:',
-            'viewNoteContentLabel': 'Content:',
+            'viewNoteTagLabel': 'Tag',
+            'viewNoteStatusLabel': 'Status',
+            'viewNoteTimeLabel': 'Time',
+            'viewNoteContentLabel': 'Content',
             'completedStatus': 'Completed',
             'incompleteStatus': 'Incomplete',
             'uncompleteBtn': 'Mark as Incomplete',
@@ -1184,7 +1270,7 @@ document.addEventListener("DOMContentLoaded", function () {
             'qrScannerTitle': 'Scan Note QR Code',
             'qrGeneratorTitle': 'Note QR Code',
             'addFromQRTitle': 'Confirm Add Note',
-            'timeReportsModalTitle': 'This Week Time Reports',
+            'timeReportsModalTitle': 'Time Reports',
             'totalTasksText': 'Total Tasks',
             'onTimeTasksText': 'On Time',
             'lateTasksText': 'Late',
@@ -1333,6 +1419,46 @@ document.addEventListener("DOMContentLoaded", function () {
             'yes': 'Yes',
             'no': 'No',
             'temporaryNotesOption': 'Temporary tasks',
+            'loadingText': 'Loading...',
+            'createPasswordTitle': 'Create Password',
+            'createPasswordDesc': 'Your account can only login with Google. Create a password to login with email.',
+            'newPasswordLabel': 'New Password',
+            'newPasswordPlaceholder': 'At least 6 characters',
+            'confirmPasswordLabel': 'Confirm Password',
+            'confirmPasswordPlaceholder': 'Re-enter password',
+            'createPasswordBtnText': 'Create Password',
+            'linkGoogleTitle': 'Link Google Account',
+            'linkGoogleDesc': 'Add Google sign-in method for easier access to your account.',
+            'linkGoogleBtnText': 'Link with Google',
+            'welcomeNewUser': 'Welcome {name}! Your profile has been created.',
+            'pleaseLoginFirst': 'Please login first!',
+            'accountHasPassword': 'Account already has a password!',
+            'passwordCreatedSuccess': 'Password created successfully! You can now login with email/password.',
+            'weakPassword': 'Password is too weak! Please use at least 6 characters.',
+            'emailHasPassword': 'This email already has a password!',
+            'errorCreatingPassword': 'Error creating password: ',
+            'linkingGoogle': 'Linking...',
+            'googleLinkedSuccess': 'Google account linked successfully! You can login using both methods.',
+            'googleAlreadyLinked': 'This Google account is already linked to another user!',
+            'authPopupClosed': 'Authentication window closed!',
+            'errorLinking': 'Linking error: ',
+            'logoutError': 'Error logging out!',
+            'filterByPeriod': 'Filter by:',
+            'thisWeek': 'This Week',
+            'thisMonth': 'This Month',
+            'thisYear': 'This Year',
+            'allTime': 'All Time',
+            'specificWeek': 'Select week...',
+            'specificMonth': 'Select month...',
+            'specificYear': 'Select year...',
+            'refreshBtn': 'Refresh',
+            'weekText': 'Week',
+            'monthText': 'Month',
+            'yearText': 'Year',
+            'avgTimeDiffText': 'Avg Saved/Overtime (min)',
+            'taskCountText': 'Task Count',
+            'minutesAxisText': 'Minutes (Saved > 0 | Over < 0)',
+
         }
     };
 
@@ -1385,6 +1511,35 @@ document.addEventListener("DOMContentLoaded", function () {
         const temporaryOption = document.querySelector('#filterSelect option[value="temporary"]');
         if (temporaryOption) temporaryOption.textContent = lang.temporaryNotesOption;
 
+        // --- PROFILE MODAL (PHẦN MỚI THÊM) ---
+        const loadingTextEl = document.querySelector('#notesLoading p');
+        if (loadingTextEl) loadingTextEl.textContent = lang.loadingText;
+
+        const createPwdTitle = document.querySelector('#createPasswordSection h4');
+        if (createPwdTitle) createPwdTitle.innerHTML = `<i class="fas fa-key"></i> ${lang.createPasswordTitle}`;
+
+        const createPwdDesc = document.querySelector('#createPasswordSection p');
+        if (createPwdDesc) createPwdDesc.textContent = lang.createPasswordDesc;
+
+        const newPwdLabel = document.querySelector('label[for="newPasswordInput"]');
+        if (newPwdLabel) newPwdLabel.textContent = lang.newPasswordLabel;
+        setPlaceholder('newPasswordInput', lang.newPasswordPlaceholder);
+
+        const confPwdLabel = document.querySelector('label[for="confirmNewPasswordInput"]');
+        if (confPwdLabel) confPwdLabel.textContent = lang.confirmPasswordLabel;
+        setPlaceholder('confirmNewPasswordInput', lang.confirmPasswordPlaceholder);
+
+        const createPwdBtn = document.getElementById('createPasswordBtn');
+        if (createPwdBtn) createPwdBtn.innerHTML = `<i class="fas fa-plus-circle"></i> ${lang.createPasswordBtnText}`;
+
+        const linkGoogleTitle = document.querySelector('#linkGoogleSection h4');
+        if (linkGoogleTitle) linkGoogleTitle.innerHTML = `<i class="fab fa-google"></i> ${lang.linkGoogleTitle}`;
+
+        const linkGoogleDesc = document.querySelector('#linkGoogleSection p');
+        if (linkGoogleDesc) linkGoogleDesc.textContent = lang.linkGoogleDesc;
+
+        const linkGoogleBtnEl = document.getElementById('linkGoogleBtn');
+        if (linkGoogleBtnEl) linkGoogleBtnEl.innerHTML = `<i class="fab fa-google"></i> ${lang.linkGoogleBtnText}`;
 
         setHTML('helpTextIcon', lang.helpTextFontAwesome);
         setText('helpTextColor', lang.helpTextColorPicker);
@@ -1500,14 +1655,18 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         // --- VIEW NOTE MODAL ---
-        const viewNoteLabels = document.querySelectorAll('#viewNoteModal .meta-item .form-label');
-        if (viewNoteLabels.length >= 3) {
-            viewNoteLabels[0].textContent = lang.viewNoteTagLabel;
-            viewNoteLabels[1].textContent = lang.viewNoteStatusLabel;
-            viewNoteLabels[2].textContent = lang.viewNoteTimeLabel;
-        }
+        const viewTagLabel = document.querySelector('label[for="viewNoteTag"]');
+        if (viewTagLabel) viewTagLabel.textContent = lang.viewNoteTagLabel;
+
+        const viewStatusLabel = document.querySelector('label[for="viewNoteStatus"]');
+        if (viewStatusLabel) viewStatusLabel.textContent = lang.viewNoteStatusLabel;
+
+        const viewTimeLabel = document.querySelector('label[for="viewNoteTime"]');
+        if (viewTimeLabel) viewTimeLabel.textContent = lang.viewNoteTimeLabel;
+
         const viewContentLabel = document.querySelector('#viewNoteContent')?.parentElement?.querySelector('.form-label');
         if (viewContentLabel) viewContentLabel.textContent = lang.viewNoteContentLabel;
+
         const viewSubTasksLabel = document.querySelector('#viewSubTasksGroup .form-label');
         if (viewSubTasksLabel) viewSubTasksLabel.textContent = lang.subTasksLabel;
 
@@ -1567,6 +1726,18 @@ document.addEventListener("DOMContentLoaded", function () {
         setText('lateTasksText', lang.lateTasksText);
         setText('avgTimeText', lang.avgTimeText);
         setText('detailsTitle', lang.detailsTitle);
+
+        const filterByPeriodLabel = document.getElementById('filterByPeriodLabel');
+        if (filterByPeriodLabel) filterByPeriodLabel.innerHTML = `<i class="fas fa-calendar-alt"></i> ${lang.filterByPeriod}`;
+
+        setText('optThisWeek', lang.thisWeek);
+        setText('optThisMonth', lang.thisMonth);
+        setText('optThisYear', lang.thisYear);
+        setText('optAllTime', lang.allTime);
+        setText('optSpecificWeek', lang.specificWeek);
+        setText('optSpecificMonth', lang.specificMonth);
+        setText('optSpecificYear', lang.specificYear);
+        setText('refreshBtnText', lang.refreshBtn);
 
         // --- PROFILE MODAL ---
         setHTML('profileBtn', `<i class="fas fa-user"></i> ${lang.menuProfile}`);
@@ -2823,33 +2994,24 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Hàm kiểm tra trạng thái thời gian của note
     function getNoteTimeStatus(note) {
-        if (note.completed) {
-            return 'completed';
-        }
+        if (note.completed) return 'completed';
 
-        const [noteHour, noteMinute] = note.time.split(':').map(Number);
         const now = new Date();
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
-        const currentTotalMinutes = currentHour * 60 + currentMinute;
-        const noteTotalMinutes = noteHour * 60 + noteMinute;
+        const currentDay = now.getDay();
+        const noteDay = parseInt(note.dayOfWeek || 0);
 
+        if (isNoteOverdue(note)) return 'overdue';
+        if (noteDay > currentDay) return 'future'; // Khác ngày (trong tương lai)
+
+        // Cùng ngày hôm nay
+        const [noteHour, noteMinute] = note.time.split(':').map(Number);
+        const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+        const noteTotalMinutes = noteHour * 60 + noteMinute;
         const diffMinutes = noteTotalMinutes - currentTotalMinutes;
 
-        // Đã trễ
-        if (diffMinutes < 0) {
-            return 'overdue';
-        }
-        // Sắp đến (trong vòng 30 phút)
-        else if (diffMinutes <= 30) {
-            return 'upcoming';
-        }
-        // Chưa đến giờ
-        else {
-            return 'future';
-        }
+        if (diffMinutes <= 30 && diffMinutes > 0) return 'upcoming';
+        return 'future';
     }
 
     // Hàm lấy text tooltip theo trạng thái
@@ -3049,7 +3211,6 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-
     // Cập nhật mỗi 30 giây
     setInterval(updateAllTimeTooltips, 30000);
 
@@ -3058,7 +3219,9 @@ document.addEventListener("DOMContentLoaded", function () {
         document.body.style.overflow = "hidden";
         viewNoteTitle.textContent = note.title;
         viewNoteContent.textContent = note.content;
-        viewNoteTime.textContent = note.time;
+        const dayName = getDayName(note.dayOfWeek || 0);
+        // Hiển thị theo định dạng: "11:00 Thứ Năm" hoặc "11:00 Thursday"
+        viewNoteTime.textContent = `${note.time} ${dayName}`;
 
         viewNoteTime.classList.remove('overdue', 'completed-time');
 
@@ -3149,6 +3312,14 @@ document.addEventListener("DOMContentLoaded", function () {
     function openTimeReportsModal() {
         timeReportsModal.classList.add("active");
         document.body.style.overflow = "hidden";
+
+        // Reset về tuần này mỗi khi mở
+        timeReportPeriod.value = 'week';
+        specificWeek.style.display = 'none';
+        specificMonth.style.display = 'none';
+        specificYear.style.display = 'none';
+
+        setDefaultSpecificDates();
         generateTimeReports();
     }
 
@@ -3159,24 +3330,23 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function generateTimeReports() {
         const lang = translations[currentLanguage];
+        const period = document.getElementById('timeReportPeriod').value;
 
-        // Lọc notes trong tuần này
-        const now = new Date();
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - now.getDay());
-        startOfWeek.setHours(0, 0, 0, 0);
+        // ✅ Lấy khoảng thời gian dựa trên filter
+        const { startDate, endDate, periodLabel } = getReportDateRange(period);
 
-        const weeklyNotes = notes.filter(note => {
+        // Lọc notes theo thời gian
+        const filteredNotes = notes.filter(note => {
             if (!note.completed || !note.endTime) return false;
-            const endDate = new Date(note.endTime);
-            return endDate >= startOfWeek;
+            const endDate_note = new Date(note.endTime);
+            return endDate_note >= startDate && endDate_note <= endDate;
         });
 
-        // Tính toán statistics
-        const totalTasks = weeklyNotes.length;
-        const onTimeTasks = weeklyNotes.filter(n => n.isOnTime === true).length;
-        const lateTasks = weeklyNotes.filter(n => n.isOnTime === false).length;
-        const notesWithDuration = weeklyNotes.filter(n => n.actualDuration && n.actualDuration > 0);
+        // Tính toán statistics (giống cũ)
+        const totalTasks = filteredNotes.length;
+        const onTimeTasks = filteredNotes.filter(n => n.isOnTime === true).length;
+        const lateTasks = filteredNotes.filter(n => n.isOnTime === false).length;
+        const notesWithDuration = filteredNotes.filter(n => n.actualDuration && n.actualDuration > 0);
         const avgTime = notesWithDuration.length > 0
             ? Math.round(notesWithDuration.reduce((sum, n) => sum + n.actualDuration, 0) / notesWithDuration.length)
             : 0;
@@ -3187,69 +3357,53 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById('lateTasksCount').textContent = lateTasks;
         document.getElementById('avgTimeValue').textContent = `${avgTime} ${lang.timeUnit}`;
 
+        // ✅ Cập nhật tiêu đề với khoảng thời gian
+        document.getElementById('timeReportsModalTitle').textContent =
+            `${lang.timeReportsModalTitle || 'Báo cáo thời gian'} - ${periodLabel}`;
+
         // Render detailed list
         const timeReportsList = document.getElementById('timeReportsList');
         timeReportsList.innerHTML = '';
 
-        if (weeklyNotes.length === 0) {
+        if (filteredNotes.length === 0) {
             timeReportsList.innerHTML = `<p style="text-align: center; color: #6b7280;">${lang.noTimeReports}</p>`;
-            return;
-        }
+        } else {
+            filteredNotes.forEach(note => {
+                const item = document.createElement('div');
+                item.className = `time-report-item ${note.isOnTime ? 'on-time' : 'late'}`;
 
-        weeklyNotes.forEach(note => {
-            const item = document.createElement('div');
-            item.className = `time-report-item ${note.isOnTime ? 'on-time' : 'late'}`;
+                const timeDiff = (note.expectedDuration || 0) - (note.actualDuration || 0);
+                const diffText = timeDiff > 0
+                    ? `${lang.savedTime}: ${timeDiff} ${lang.timeUnit}`
+                    : `${lang.overtime}: ${Math.abs(timeDiff)} ${lang.timeUnit}`;
 
-            const timeDiff = (note.expectedDuration || 0) - (note.actualDuration || 0);
-
-            const diffText = timeDiff > 0
-                ? `${lang.savedTime}: ${timeDiff} ${lang.timeUnit}`
-                : `${lang.overtime}: ${Math.abs(timeDiff)} ${lang.timeUnit}`;
-
-            // Format thời gian hoàn thành
-            let completedAtStr = "--:--";
-            if (note.endTime) {
-                const endDate = new Date(note.endTime);
-                const hours = String(endDate.getHours()).padStart(2, '0');
-                const minutes = String(endDate.getMinutes()).padStart(2, '0');
-                const day = String(endDate.getDate()).padStart(2, '0');
-                const month = String(endDate.getMonth() + 1).padStart(2, '0');
-                completedAtStr = `${hours}:${minutes} (${day}/${month})`;
-            }
-
-            const completionColor = note.isOnTime ? '#059669' : '#d97706';
-
-            // **MỚI: Tính % hoàn thành sub-tasks**
-            let subTaskProgressHTML = '';
-            if (note.subTasks && note.subTasks.length > 0) {
-                const progress = calculateProgress(note.subTasks);
-                let progressClass = '';
-                let progressIcon = '';
-
-                if (progress === 100) {
-                    progressClass = 'complete';
-                    progressIcon = '✅';
-                } else if (progress >= 67) {
-                    progressClass = 'high';
-                    progressIcon = '🟢';
-                } else if (progress >= 34) {
-                    progressClass = 'medium';
-                    progressIcon = '🟡';
-                } else {
-                    progressClass = 'low';
-                    progressIcon = '🔴';
+                let completedAtStr = "--:--";
+                if (note.endTime) {
+                    const endDate = new Date(note.endTime);
+                    const hours = String(endDate.getHours()).padStart(2, '0');
+                    const minutes = String(endDate.getMinutes()).padStart(2, '0');
+                    const day = String(endDate.getDate()).padStart(2, '0');
+                    const month = String(endDate.getMonth() + 1).padStart(2, '0');
+                    completedAtStr = `${hours}:${minutes} (${day}/${month})`;
                 }
 
-                subTaskProgressHTML = `
+                const completionColor = note.isOnTime ? '#059669' : '#d97706';
+
+                let subTaskProgressHTML = '';
+                if (note.subTasks && note.subTasks.length > 0) {
+                    const progress = calculateProgress(note.subTasks);
+                    let progressClass = progress === 100 ? 'complete' : progress >= 67 ? 'high' : progress >= 34 ? 'medium' : 'low';
+                    let progressIcon = progress === 100 ? '✅' : progress >= 67 ? '🟢' : progress >= 34 ? '🟡' : '🔴';
+
+                    subTaskProgressHTML = `
                 <p style="margin-top: 5px;">
                     <span class="sub-task-progress ${progressClass}">
-                        ${progressIcon} ${lang.subTaskProgressLabel || 'Tiến độ công việc'}: ${progress}% (${note.subTasks.filter(t => t.completed).length}/${note.subTasks.length})
+                        ${progressIcon} ${lang.subTaskProgressLabel || 'Tiến độ'}: ${progress}% (${note.subTasks.filter(t => t.completed).length}/${note.subTasks.length})
                     </span>
-                </p>
-            `;
-            }
+                </p>`;
+                }
 
-            item.innerHTML = `
+                item.innerHTML = `
             <i class="fas ${note.isOnTime ? 'fa-check-circle' : 'fa-exclamation-circle'} status-icon"></i>
             <div class="note-info">
                 <h5>${note.title}</h5>
@@ -3267,43 +3421,177 @@ document.addEventListener("DOMContentLoaded", function () {
             </div>
             <div class="time-diff ${timeDiff > 0 ? 'positive' : 'negative'}">
                 ${diffText}
-            </div>
-        `;
+            </div>`;
 
-            timeReportsList.appendChild(item);
-        });
+                timeReportsList.appendChild(item);
+            });
+        }
 
-        renderTimeReportsChart(weeklyNotes);
+        renderTimeReportsChart(filteredNotes);
     }
 
-    function renderTimeReportsChart(weeklyNotes) {
-        // 1. Phá hủy instance chart cũ để tránh memory leak
+    function getReportDateRange(period) {
+        const now = new Date();
+        let startDate, endDate, periodLabel;
+        const lang = translations[currentLanguage];
+
+        switch (period) {
+            case 'week':
+                startDate = new Date(now);
+                startDate.setDate(now.getDate() - now.getDay());
+                startDate.setHours(0, 0, 0, 0);
+                endDate = new Date(startDate);
+                endDate.setDate(startDate.getDate() + 6);
+                endDate.setHours(23, 59, 59, 999);
+                periodLabel = `${lang.thisWeek} (${startDate.toLocaleDateString(currentLanguage === 'vi' ? 'vi-VN' : 'en-US')} - ${endDate.toLocaleDateString(currentLanguage === 'vi' ? 'vi-VN' : 'en-US')})`;
+                break;
+
+            case 'month':
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+                periodLabel = `${lang.monthText} ${now.getMonth() + 1}/${now.getFullYear()}`;
+                break;
+
+            case 'year':
+                startDate = new Date(now.getFullYear(), 0, 1);
+                endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+                periodLabel = `${lang.yearText} ${now.getFullYear()}`;
+                break;
+
+            case 'all':
+                startDate = new Date(2020, 0, 1);
+                endDate = new Date(2100, 11, 31, 23, 59, 59, 999);
+                periodLabel = lang.allTime;
+                break;
+
+            case 'specific-week':
+                const weekValue = specificWeek.value;
+                if (weekValue) {
+                    const [year, week] = weekValue.split('-W').map(Number);
+                    startDate = getDateOfISOWeek(week, year);
+                    endDate = new Date(startDate);
+                    endDate.setDate(startDate.getDate() + 6);
+                    endDate.setHours(23, 59, 59, 999);
+                    periodLabel = `${lang.weekText} ${week}/${year}`;
+                } else {
+                    // Fallback nếu user chưa chọn
+                    startDate = new Date(); endDate = new Date();
+                    periodLabel = lang.specificWeek;
+                }
+                break;
+
+            case 'specific-month':
+                const monthValue = specificMonth.value;
+                if (monthValue) {
+                    const [year, month] = monthValue.split('-').map(Number);
+                    startDate = new Date(year, month - 1, 1);
+                    endDate = new Date(year, month, 0, 23, 59, 59, 999);
+                    periodLabel = `${lang.monthText} ${month}/${year}`;
+                } else {
+                    startDate = new Date(); endDate = new Date();
+                    periodLabel = lang.specificMonth;
+                }
+                break;
+
+            case 'specific-year':
+                const yearValue = parseInt(specificYear.value);
+                if (yearValue) {
+                    startDate = new Date(yearValue, 0, 1);
+                    endDate = new Date(yearValue, 11, 31, 23, 59, 59, 999);
+                    periodLabel = `${lang.yearText} ${yearValue}`;
+                } else {
+                    startDate = new Date(); endDate = new Date();
+                    periodLabel = lang.specificYear;
+                }
+                break;
+        }
+
+        return { startDate, endDate, periodLabel };
+    }
+
+    // Helper: Tính ngày đầu tuần theo ISO (Thứ Hai là đầu tuần)
+    function getDateOfISOWeek(week, year) {
+        const simple = new Date(year, 0, 1 + (week - 1) * 7);
+        const dow = simple.getDay();
+        const ISOweekStart = simple;
+        if (dow <= 4) ISOweekStart.setDate(simple.getDate() - simple.getDay() + 1);
+        else ISOweekStart.setDate(simple.getDate() + 8 - simple.getDay());
+        return ISOweekStart;
+    }
+
+    function setDefaultSpecificDates() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+
+        // Cài đặt năm
+        specificYear.value = year;
+
+        // Cài đặt tháng
+        specificMonth.value = `${year}-${month}`;
+
+        // Cài đặt tuần (Tính toán tuần ISO hiện tại)
+        const firstDayOfYear = new Date(year, 0, 1);
+        const pastDaysOfYear = (now - firstDayOfYear) / 86400000;
+        const weekNumber = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+        specificWeek.value = `${year}-W${String(weekNumber).padStart(2, '0')}`;
+    }
+
+       function renderTimeReportsChart(weeklyNotes) {
         if (window.timeReportsChartInstance) {
             window.timeReportsChartInstance.destroy();
         }
 
-        // 2. Lấy container và TẠO LẠI canvas mới (Đây là bước quan trọng nhất)
         const chartContainer = document.querySelector('.chart-container');
         if (!chartContainer) return;
 
-        // Xóa canvas cũ và tạo mới để đảm bảo không bị lỗi cache
         chartContainer.innerHTML = '<canvas id="timeReportsChart"></canvas>';
-
         const ctx = document.getElementById('timeReportsChart');
         if (!ctx) return;
 
-        // 3. Chuẩn bị dữ liệu mới
         const onTimeData = [0, 0, 0, 0, 0, 0, 0];
         const lateData = [0, 0, 0, 0, 0, 0, 0];
+        
+        const timeDiffSum = [0, 0, 0, 0, 0, 0, 0];
+        const taskCountPerDay = [0, 0, 0, 0, 0, 0, 0];
+        const avgTimeDiffData = [0, 0, 0, 0, 0, 0, 0];
 
         weeklyNotes.forEach(note => {
             const day = note.dayOfWeek || 0;
+            
             if (note.isOnTime) {
                 onTimeData[day]++;
             } else {
                 lateData[day]++;
             }
+
+            const timeDiff = (note.expectedDuration || 0) - (note.actualDuration || 0);
+            timeDiffSum[day] += timeDiff;
+            taskCountPerDay[day]++;
         });
+
+        for (let i = 0; i < 7; i++) {
+            if (taskCountPerDay[i] > 0) {
+                avgTimeDiffData[i] = Math.round(timeDiffSum[i] / taskCountPerDay[i]);
+            } else {
+                avgTimeDiffData[i] = 0; 
+            }
+        }
+
+        const stackedTasks = onTimeData.map((val, i) => val + lateData[i]);
+        let maxTasks = Math.max(...stackedTasks, 1);
+        let yMax = Math.ceil(maxTasks * 1.2); 
+        let yMin = 0;
+
+        const hasNegativeDiff = avgTimeDiffData.some(v => v < 0);
+        let maxAbsDiff = Math.max(...avgTimeDiffData.map(Math.abs), 1);
+        let y1Max = Math.ceil(maxAbsDiff * 1.2);
+        let y1Min = 0;
+
+        if (hasNegativeDiff) {
+            yMin = -yMax;
+            y1Min = -y1Max;
+        }
 
         const lang = translations[currentLanguage];
         const dayLabels = [
@@ -3311,54 +3599,113 @@ document.addEventListener("DOMContentLoaded", function () {
             lang.thursday, lang.friday, lang.saturday
         ];
 
-        // 4. Vẽ biểu đồ mới trên canvas mới
         window.timeReportsChartInstance = new Chart(ctx, {
-            type: 'bar',
             data: {
                 labels: dayLabels,
                 datasets: [
                     {
-                        label: lang.onTimeTasksText,
-                        data: onTimeData,
-                        backgroundColor: 'rgba(16, 185, 129, 0.8)',
-                        borderColor: 'rgb(16, 185, 129)',
-                        borderWidth: 1,
-                        borderRadius: 5, // Bo góc cho đẹp
+                        type: 'line',
+                        label: lang.avgTimeDiffText || 'TB Tiết kiệm/Vượt (phút)',
+                        data: avgTimeDiffData,
+                        borderColor: '#3b82f6', 
+                        backgroundColor: '#3b82f6',
+                        borderWidth: 2,
+                        tension: 0.3, 
+                        pointBackgroundColor: '#ffffff',
+                        pointBorderColor: '#3b82f6',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        yAxisID: 'y1', 
+                        order: 0 
                     },
                     {
+                        type: 'bar',
+                        label: lang.onTimeTasksText,
+                        data: onTimeData,
+                        backgroundColor: 'rgba(16, 185, 129, 0.8)', 
+                        borderColor: 'rgb(16, 185, 129)',
+                        borderWidth: 1,
+                        borderRadius: 5,
+                        yAxisID: 'y', 
+                        order: 1
+                    },
+                    {
+                        type: 'bar',
                         label: lang.lateTasksText,
                         data: lateData,
-                        backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                        backgroundColor: 'rgba(239, 68, 68, 0.8)', 
                         borderColor: 'rgb(239, 68, 68)',
                         borderWidth: 1,
-                        borderRadius: 5, // Bo góc
+                        borderRadius: 5,
+                        yAxisID: 'y', 
+                        order: 2
                     }
                 ]
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: false, // Cho phép chart co giãn tốt hơn trong modal
-                plugins: {
-                    legend: {
-                        position: 'top',
-                    },
-                    title: {
-                        display: true,
-                        text: lang.timeReportsModalTitle,
-                        font: {
-                            size: 16
-                        }
-                    }
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index', 
+                    intersect: false,
                 },
                 scales: {
                     x: {
-                        stacked: true, // Chồng 2 cột lên nhau
+                        stacked: true, 
                     },
                     y: {
-                        stacked: true, // Chồng 2 cột lên nhau
-                        beginAtZero: true,
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        stacked: true, 
+                        min: yMin, 
+                        max: yMax,
+                        title: {
+                            display: true,
+                            text: lang.taskCountText || 'Số lượng Task',
+                            color: '#6b7280',
+                            font: { size: 11 }
+                        },
+                        grid: {
+                            color: (context) => {
+                                if (context.tick.value === 0) {
+                                    return 'rgba(0, 0, 0, 0.6)'; // Đậm đường 0
+                                }
+                                return 'rgba(0, 0, 0, 0.05)';
+                            },
+                            lineWidth: (context) => {
+                                if (context.tick.value === 0) {
+                                    return 2.5; // Dày đường 0
+                                }
+                                return 1;
+                            }
+                        },
                         ticks: {
-                            stepSize: 1 // Đảm bảo trục Y là số nguyên (1, 2, 3...)
+                            maxTicksLimit: 7,
+                            callback: function(value) {
+                                if (value < 0) return ''; 
+                                if (Math.floor(value) !== value) return ''; 
+                                return value;
+                            }
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        min: y1Min, 
+                        max: y1Max,
+                        title: {
+                            display: true,
+                            text: lang.minutesAxisText || 'Phút (Tiết kiệm > 0 | Vượt < 0)',
+                            color: '#3b82f6',
+                            font: { size: 11 }
+                        },
+                        grid: {
+                            drawOnChartArea: false, 
+                        },
+                        ticks: {
+                            maxTicksLimit: 7
                         }
                     }
                 }
@@ -3637,23 +3984,21 @@ document.addEventListener("DOMContentLoaded", function () {
         showToast(lang.toastExcelExported, 'success');
     }
 
-    // HÀM MỚI: Kiểm tra và tạo document user nếu chưa tồn tại
     async function checkAndCreateUserDocument(user) {
         if (!user) return;
-
         const userDocRef = db.collection('users').doc(user.uid);
+        const lang = translations[currentLanguage]; // MỚI
 
         try {
             const doc = await userDocRef.get();
 
             if (!doc.exists) {
-                console.warn(`User document for ${user.email} not found. Creating one now.`);
-
                 const userData = {
                     name: user.displayName || 'New User',
                     email: user.email,
-                    email_lowercase: user.email.toLowerCase(), // Quan trọng!
+                    email_lowercase: user.email.toLowerCase(),
                     photoURL: user.photoURL || null,
+                    providers: ['password'],
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     settings: {
                         language: 'vi',
@@ -3665,12 +4010,29 @@ document.addEventListener("DOMContentLoaded", function () {
                 };
 
                 await userDocRef.set(userData);
-                showToast(`Chào mừng ${userData.name}! Đã tạo hồ sơ cho bạn.`, 'success');
+                // MỚI: Sử dụng ngôn ngữ
+                showToast(lang.welcomeNewUser.replace('{name}', userData.name), 'success');
+            } else {
+                const userData = doc.data();
+                let providers = [];
+                if (Array.isArray(userData.providers)) {
+                    providers = userData.providers;
+                } else if (userData.provider) {
+                    providers = Array.isArray(userData.provider) ? userData.provider : [userData.provider];
+                    await userDocRef.update({
+                        providers: providers,
+                        provider: firebase.firestore.FieldValue.delete()
+                    });
+                } else {
+                    providers = ['password'];
+                    await userDocRef.update({ providers: providers });
+                }
             }
         } catch (error) {
             console.error("Error checking/creating user document:", error);
         }
     }
+
 
     let lastCheckedDate = new Date().getDate();
 
@@ -3819,21 +4181,25 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function isNoteOverdue(note) {
-        if (note.completed) {
-            return false;
-        }
+        if (note.completed) return false;
 
-        const [noteHour, noteMinute] = note.time.split(':').map(Number);
         const now = new Date();
+        const currentDay = now.getDay();
         const currentHour = now.getHours();
         const currentMinute = now.getMinutes();
 
-        if (currentHour > noteHour) {
-            return true;
-        }
-        if (currentHour === noteHour && currentMinute > noteMinute) {
-            return true;
-        }
+        const noteDay = parseInt(note.dayOfWeek || 0);
+        const [noteHour, noteMinute] = note.time.split(':').map(Number);
+
+        // Nếu ngày của note nhỏ hơn hôm nay -> Đã qua ngày -> Trễ
+        if (noteDay < currentDay) return true;
+        // Nếu ngày của note lớn hơn hôm nay -> Chưa tới ngày -> Không trễ
+        if (noteDay > currentDay) return false;
+
+        // Nếu cùng ngày hôm nay, mới so sánh giờ phút
+        if (currentHour > noteHour) return true;
+        if (currentHour === noteHour && currentMinute > noteMinute) return true;
+
         return false;
     }
 
@@ -3892,6 +4258,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
         notesToComplete.forEach(note => {
             const noteRef = db.collection('notes').doc(note.id);
+
+            if (note.isTemporaryTask) {
+                batch.delete(noteRef);
+                return; // Chuyển sang note tiếp theo
+            }
 
             let actualDuration = null;
             let isOnTime = null;
@@ -4076,6 +4447,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         // 3. Đóng modal và báo thành công NGAY (Không chờ server)
+        loadNotes();
         closeSettingsModal();
         showToast('toastSettingsSaved', 'success');
 
@@ -4099,12 +4471,35 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    function loadNotes() { // Không còn async nữa
+    function loadNotes() {
         const searchTerm = searchInput.value.toLowerCase();
         const filterValue = filterSelect.value;
+        const dayFilter = dayOfWeekSelect.value; // Lấy thêm bộ lọc ngày
 
-        let filteredNotes = [...notes]; // Tạo bản sao để lọc, dùng biến 'notes' toàn cục
+        let filteredNotes = [...notes]; // Tạo bản sao từ toàn bộ ghi chú
 
+        // 1. LỌC THEO NGÀY TRONG TUẦN
+        if (dayFilter !== 'all') {
+            filteredNotes = filteredNotes.filter(note => note.dayOfWeek === parseInt(dayFilter));
+        }
+
+        // 2. LỌC THEO TRẠNG THÁI VÀ THẺ
+        if (filterValue !== "all") {
+            if (filterValue === "completed") {
+                filteredNotes = filteredNotes.filter(note => note.completed);
+            } else if (filterValue === "incomplete") {
+                filteredNotes = filteredNotes.filter(note => !note.completed);
+            } else if (filterValue === "temporary") {
+                filteredNotes = filteredNotes.filter(note => note.isTemporaryTask);
+            } else if (filterValue === "overdue") {
+                filteredNotes = filteredNotes.filter(note => !note.completed && isNoteOverdue(note));
+            } else {
+                // Lọc theo tag ID
+                filteredNotes = filteredNotes.filter(note => note.tag === filterValue);
+            }
+        }
+
+        // 3. LỌC THEO TÌM KIẾM (Search)
         if (searchTerm) {
             filteredNotes = filteredNotes.filter(
                 (note) =>
@@ -4114,19 +4509,12 @@ document.addEventListener("DOMContentLoaded", function () {
             );
         }
 
-        if (filterValue !== "all") {
-            if (filterValue === "completed") {
-                filteredNotes = filteredNotes.filter(note => note.completed);
-            } else {
-                // Lọc theo tag ID
-                filteredNotes = filteredNotes.filter(note => note.tag === filterValue);
-            }
-        }
-
+        // Render ra màn hình
         renderNotes(filteredNotes);
         updateEmptyState(filteredNotes);
-        checkAndScheduleNotifications(filteredNotes); // Kiểm tra và lên lịch thông báo khi tải ghi chú
+        checkAndScheduleNotifications(filteredNotes);
     }
+
 
     function openSettingsModal() {
         settingsModal.classList.add("active");
@@ -4205,34 +4593,29 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    // ==========================================
-    // LINK PASSWORD VỚI GOOGLE ACCOUNT
-    // ==========================================
     async function linkPasswordProvider(newPassword) {
+        const lang = translations[currentLanguage]; // MỚI
+
         if (!currentUser) {
-            showToast('Vui lòng đăng nhập trước!', 'error');
+            showToast(lang.pleaseLoginFirst, 'error');
             return false;
         }
 
         try {
-            // ✅ KIỂM TRA ĐÃ CÓ PASSWORD CHƯA
             const signInMethods = await auth.fetchSignInMethodsForEmail(currentUser.email);
 
             if (signInMethods.includes('password')) {
-                showToast('Tài khoản đã có mật khẩu rồi!', 'info');
+                showToast(lang.accountHasPassword, 'info');
                 return false;
             }
 
-            // ✅ TẠO CREDENTIAL MỚI
             const credential = firebase.auth.EmailAuthProvider.credential(
                 currentUser.email,
                 newPassword
             );
 
-            // ✅ LINK VỚI ACCOUNT HIỆN TẠI
             await currentUser.linkWithCredential(credential);
 
-            // ✅ CẬP NHẬT PROVIDERS TRONG FIRESTORE
             const userDocRef = db.collection('users').doc(currentUser.uid);
             const userDoc = await userDocRef.get();
             const userData = userDoc.data();
@@ -4243,40 +4626,39 @@ document.addEventListener("DOMContentLoaded", function () {
                 await userDocRef.update({ providers: providers });
             }
 
-            showToast('✅ Đã tạo mật khẩu thành công! Bạn có thể đăng nhập bằng email/password.', 'success');
+            showToast(lang.passwordCreatedSuccess, 'success');
             return true;
 
         } catch (error) {
             if (error.code === 'auth/weak-password') {
-                showToast('❌ Mật khẩu quá yếu! Vui lòng dùng ít nhất 6 ký tự.', 'error');
+                showToast(lang.weakPassword, 'error');
             } else if (error.code === 'auth/email-already-in-use') {
-                showToast('⚠️ Email này đã có mật khẩu!', 'warning');
+                showToast(lang.emailHasPassword, 'warning');
             } else {
-                showToast('❌ Lỗi tạo mật khẩu: ' + error.message, 'error');
+                showToast(lang.errorCreatingPassword + error.message, 'error');
             }
             return false;
         }
     }
 
+
     const linkGoogleBtn = document.getElementById('linkGoogleBtn');
     if (linkGoogleBtn) {
         linkGoogleBtn.addEventListener('click', async () => {
+            const lang = translations[currentLanguage]; // MỚI
+
             if (!currentUser) {
-                showToast('Vui lòng đăng nhập trước!', 'error');
+                showToast(lang.pleaseLoginFirst, 'error');
                 return;
             }
 
             try {
-                // Hiện loading
                 linkGoogleBtn.disabled = true;
-                linkGoogleBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Đang liên kết...';
+                linkGoogleBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> ${lang.linkingGoogle}`;
 
                 const provider = new firebase.auth.GoogleAuthProvider();
-
-                // Link credential
                 await currentUser.linkWithPopup(provider);
 
-                // Cập nhật providers trong Firestore
                 const userDocRef = db.collection('users').doc(currentUser.uid);
                 const userDoc = await userDocRef.get();
                 const userData = userDoc.data();
@@ -4287,25 +4669,24 @@ document.addEventListener("DOMContentLoaded", function () {
                     await userDocRef.update({ providers: providers });
                 }
 
-                showToast('✅ Đã liên kết với Google thành công! Bạn có thể đăng nhập bằng cả 2 phương thức.', 'success');
-
-                // Ẩn section
+                showToast(lang.googleLinkedSuccess, 'success');
                 document.getElementById('linkGoogleSection').style.display = 'none';
 
             } catch (error) {
                 if (error.code === 'auth/credential-already-in-use') {
-                    showToast('⚠️ Tài khoản Google này đã được liên kết với tài khoản khác!', 'warning');
+                    showToast(lang.googleAlreadyLinked, 'warning');
                 } else if (error.code === 'auth/popup-closed-by-user') {
-                    showToast('⚠️ Bạn đã đóng cửa sổ xác thực!', 'warning');
+                    showToast(lang.authPopupClosed, 'warning');
                 } else {
-                    showToast('❌ Lỗi liên kết: ' + error.message, 'error');
+                    showToast(lang.errorLinking + error.message, 'error');
                 }
             } finally {
                 linkGoogleBtn.disabled = false;
-                linkGoogleBtn.innerHTML = '<i class="fab fa-google"></i> Liên kết với Google';
+                linkGoogleBtn.innerHTML = `<i class="fab fa-google"></i> ${lang.linkGoogleBtnText}`;
             }
         });
     }
+
 
     async function checkAndCreateUserDocument(user) {
         if (!user) return;

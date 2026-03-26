@@ -275,7 +275,7 @@
             </div>
           </div>
           <div class="form-group">
-            <label class="form-label">Nội dung:</label>
+            <label class="form-label">Nội dung</label>
             <p id="viewNoteContent" class="view-content"></p>
           </div>
 
@@ -521,12 +521,48 @@
     <div id="timeReportsModal" class="modal-overlay">
       <div class="modal">
         <div class="modal-header">
-          <h3 class="modal-title" id="timeReportsModalTitle">Báo cáo thời gian tuần này</h3>
+          <h3 class="modal-title" id="timeReportsModalTitle">Báo cáo thời gian</h3>
           <button id="closeTimeReportsModalBtn" class="modal-close">
             <i class="fas fa-times"></i>
           </button>
         </div>
         <div class="modal-body">
+          <div class="time-filter-container"
+            style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <label style="font-weight: 600; color: #4b5563;" id="filterByPeriodLabel">
+              <i class="fas fa-calendar-alt"></i> Lọc theo:
+            </label>
+
+            <select id="timeReportPeriod" class="filter-select" style="flex: 0 0 140px;">
+              <option value="week" id="optThisWeek">Tuần này</option>
+              <option value="month" id="optThisMonth">Tháng này</option>
+              <option value="year" id="optThisYear">Năm này</option>
+              <option value="all" id="optAllTime">Tất cả</option>
+              <option disabled>──────────</option>
+              <option value="specific-week" id="optSpecificWeek">Chọn tuần...</option>
+              <option value="specific-month" id="optSpecificMonth">Chọn tháng...</option>
+              <option value="specific-year" id="optSpecificYear">Chọn năm...</option>
+            </select>
+
+            <!-- Tuần cụ thể (Ẩn mặc định) -->
+            <input type="week" id="specificWeek" class="form-input"
+              style="flex: 0 0 160px; display: none; height: 37px;">
+
+            <!-- Tháng cụ thể (Ẩn mặc định) -->
+            <input type="month" id="specificMonth" class="form-input"
+              style="flex: 0 0 160px; display: none; height: 37px;">
+
+            <!-- Năm cụ thể (Ẩn mặc định) -->
+            <input type="number" id="specificYear" class="form-input" placeholder="YYYY" min="2020" max="2100"
+              style="flex: 0 0 120px; display: none; height: 37px;">
+
+            <!-- Nút làm mới -->
+            <button id="refreshReportBtn" class="action-btn" 
+              style="flex: 0 0 auto; height: 37px; padding: 0 15px; margin: 0 !important; min-width: 110px !important;">
+              <i class="fas fa-sync-alt"></i> <span id="refreshBtnText">Làm mới</span>
+            </button>
+          </div>
+
           <!-- Summary Cards -->
           <div class="time-reports-summary">
             <div class="summary-card">
@@ -704,10 +740,11 @@
           <div style="border-top: 1px solid #eee; margin: 20px 0; padding-top: 5px;">
             <!-- Thêm id="labelSecurity" -->
             <h4 style="margin-bottom: 5px; color: #333;" id="labelSecurity">Bảo mật</h4>
-            <p style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">
+            <p id="helpTextReset" style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">
               Chúng tôi sẽ gửi liên kết đổi mật khẩu đến email của bạn.
             </p>
-            <button type="button" id="sendPasswordResetBtn" class="action-btn" style="width: 100%;background-color: #f59e0b; color: white;">
+            <button type="button" id="sendPasswordResetBtn" class="action-btn"
+              style="width: 100%;background-color: #f59e0b; color: white;">
               <i class="fas fa-key"></i> <span id="textSendResetBtn">Gửi email đổi mật khẩu</span>
             </button>
             <!-- Thêm id="helpTextReset" -->
@@ -715,109 +752,6 @@
           </div>
 
           <button id="saveProfileBtn" class="submit-btn small-btn">Lưu thay đổi</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Send Report Modal -->
-    <div id="sendReportModal" class="modal-overlay">
-      <div class="modal">
-        <div class="modal-header">
-          <h3 class="modal-title">Gửi báo cáo</h3>
-          <button id="closeSendReportBtn" class="modal-close">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        <div class="modal-body">
-          <!-- Report Summary Preview -->
-          <div class="report-preview" id="reportPreview">
-            <h4>Tóm tắt báo cáo tuần này</h4>
-            <div class="summary-stats">
-              <div class="stat-item">
-                <i class="fas fa-tasks"></i>
-                <span id="previewTotal">0</span>
-                <label>Tổng task</label>
-              </div>
-              <div class="stat-item success">
-                <i class="fas fa-check-circle"></i>
-                <span id="previewCompleted">0</span>
-                <label>Hoàn thành</label>
-              </div>
-              <div class="stat-item warning">
-                <i class="fas fa-clock"></i>
-                <span id="previewOnTime">0</span>
-                <label>Đúng hạn</label>
-              </div>
-              <div class="stat-item danger">
-                <i class="fas fa-exclamation-circle"></i>
-                <span id="previewLate">0</span>
-                <label>Trễ hạn</label>
-              </div>
-            </div>
-          </div>
-
-          <!-- Send Form -->
-          <div class="form-group">
-            <label for="recipientEmail" class="form-label">
-              <i class="fas fa-envelope"></i> Email người nhận
-            </label>
-            <input type="email" id="recipientEmail" class="form-input" placeholder="manager@example.com" required />
-            <p class="help-text">
-              Chỉ gửi được cho người dùng đã đăng ký trong hệ thống
-            </p>
-          </div>
-
-          <div class="form-group">
-            <label for="reportMessage" class="form-label">
-              <i class="fas fa-comment"></i> Ghi chú (tùy chọn)
-            </label>
-            <textarea id="reportMessage" class="form-input form-textarea" rows="3"
-              placeholder="Thêm ghi chú cho người nhận..."></textarea>
-          </div>
-
-          <button id="sendReportSubmitBtn" class="submit-btn">
-            <i class="fas fa-paper-plane"></i> Gửi báo cáo
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- View Report Detail Modal -->
-    <div id="viewReportModal" class="modal-overlay">
-      <div class="modal">
-        <div class="modal-header">
-          <h3 class="modal-title">Chi tiết báo cáo</h3>
-          <button id="closeViewReportBtn" class="modal-close">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="report-from">
-            <strong id="reportFromLabel">Từ:</strong> <span id="reportFromName"></span> (<span
-              id="reportFromEmail"></span>)
-          </div>
-          <div class="report-date">
-            <strong id="reportDateLabel">Ngày gửi:</strong> <span id="reportDate"></span>
-          </div>
-          <div class="report-message" id="reportMessageContent" style="display: none;">
-            <strong id="reportNoteLabel">Ghi chú:</strong>
-            <p id="reportMessageText"></p>
-          </div>
-
-          <hr style="margin: 20px 0;">
-
-          <!-- Report Stats -->
-          <div id="reportDetailStats"></div>
-
-          <!-- Report Actions -->
-          <div class="report-actions">
-            <button id="deleteReportBtn" class="submit-btn" style="background: #ef4444;">
-              <i class="fas fa-trash"></i> Xóa báo cáo
-            </button>
-            <button id="markAsReadBtn" class="submit-btn" style="background: #10b981;">
-              <i class="fas fa-check"></i> Đánh dấu đã đọc
-            </button>
-          </div>
         </div>
       </div>
     </div>
