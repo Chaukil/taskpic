@@ -161,21 +161,6 @@ document.addEventListener("DOMContentLoaded", function () {
     let tagsLoaded = false;
     let notesLoaded = false;
 
-    auth.onAuthStateChanged(async (user) => { // ⬅️ Thêm async
-        if (!user) {
-            window.location.href = 'login.html';
-            return;
-        }
-
-        currentUser = user;
-        console.log('✅ Authenticated as:', user.email);
-
-        // ✅ GỌI HÀM MỚI TẠI ĐÂY
-        await checkAndCreateUserDocument(user);
-
-        initApp();
-    });
-
     function initApp() {
         updateUserMenu();
         loadUserSettingsFromFirestore();
@@ -4322,6 +4307,61 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    async function checkAndCreateUserDocument(user) {
+        if (!user) return;
+
+        const userDocRef = db.collection('users').doc(user.uid);
+
+        try {
+            const doc = await userDocRef.get();
+
+            if (!doc.exists) {
+                // ✅ Tạo mới nếu chưa có
+                const userData = {
+                    name: user.displayName || 'New User',
+                    email: user.email,
+                    email_lowercase: user.email.toLowerCase(),
+                    photoURL: user.photoURL || null,
+                    providers: ['password'], // ⬅️ Mặc định password
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    settings: {
+                        language: 'vi',
+                        theme: 'light',
+                        noteColumns: 3,
+                        backgroundColor: '#f8f9fa',
+                        notificationTimeBefore: 5
+                    }
+                };
+
+                await userDocRef.set(userData);
+                showToast(`Chào mừng ${userData.name}!`, 'success');
+            } else {
+                // ✅ CHUẨN HÓA PROVIDERS (Chuyển đổi dữ liệu cũ)
+                const userData = doc.data();
+
+                let providers = [];
+                if (Array.isArray(userData.providers)) {
+                    providers = userData.providers;
+                } else if (userData.provider) {
+                    providers = Array.isArray(userData.provider)
+                        ? userData.provider
+                        : [userData.provider];
+
+                    // ✅ Cập nhật lại Firestore với format mới
+                    await userDocRef.update({
+                        providers: providers,
+                        provider: firebase.firestore.FieldValue.delete() // Xóa field cũ
+                    });
+                } else {
+                    // Không có providers nào → Mặc định là password
+                    providers = ['password'];
+                    await userDocRef.update({ providers: providers });
+                }
+            }
+        } catch (error) {
+            console.error("Error checking/creating user document:", error);
+        }
+    }
 
     // ==========================================
     // EVENT: TẠO MẬT KHẨU TỪ GOOGLE ACCOUNT
