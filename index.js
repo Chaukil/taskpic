@@ -130,6 +130,20 @@ document.addEventListener("DOMContentLoaded", function () {
     const specificYear = document.getElementById('specificYear');
     const refreshReportBtn = document.getElementById('refreshReportBtn');
 
+    // Tìm đoạn khởi tạo Settings Modal, thêm listener
+
+    const clearTranslationCacheBtn = document.getElementById('clearTranslationCacheBtn');
+    if (clearTranslationCacheBtn) {
+        clearTranslationCacheBtn.addEventListener('click', () => {
+            clearCacheRequested = true;
+            openConfirmModal('Bạn có chắc muốn xóa toàn bộ bộ nhớ dịch? Lần dịch tiếp theo sẽ chậm hơn.', 'clear_cache');
+        });
+
+    }
+
+
+
+
     let html5QrCode = null;
     let currentQRNoteData = null;
     let currentGeneratedNote = null;
@@ -160,6 +174,8 @@ document.addEventListener("DOMContentLoaded", function () {
     let editingNoteKey = null;
     let currentConfirmAction = null; // MỚI: Theo dõi loại hành động ('delete' hoặc 'complete_temp')
     let elementToAnimate = null;
+    let tagToDeleteId = null;         // ✅ FIX: Khai báo biến xóa Tag
+    let clearCacheRequested = false;
     let editingTagId = null;
     let notificationInterval;
     let notifiedNotes = new Set();
@@ -167,68 +183,79 @@ document.addEventListener("DOMContentLoaded", function () {
     let tagsLoaded = false;
     let notesLoaded = false;
 
+    function translateDynamicElement(element) {
+        if (!element) return;
+        if (currentLanguage !== 'vi' && window.autoTranslate) {
+            window.autoTranslate.translateNew(element, currentLanguage);
+        }
+    }
+    // ✅ FIX: Cập nhật text, xóa cache cũ và ép dịch ngay lập tức
+    function setDynamicText(element, text) {
+        if (!element) return;
+
+        // 1. Nếu đang dùng tiếng Việt -> gán luôn
+        if (currentLanguage === 'vi' || !window.autoTranslate) {
+            element.textContent = text;
+            return;
+        }
+
+        // 2. Nếu đã có trong Cache -> Gán bản dịch NGAY LẬP TỨC
+        const cachedText = window.autoTranslate.getTranslationSync(text, currentLanguage);
+        if (cachedText) {
+            element.textContent = cachedText;
+            return;
+        }
+
+        // 3. Nếu chưa có -> Gán tiếng Việt tạm, gọi API dịch ngầm
+        element.textContent = text;
+        if (window.autoTranslate.translatedElements) {
+            window.autoTranslate.translatedElements.delete(element);
+            element.removeAttribute('data-original-text');
+            window.autoTranslate.translateElement(element, currentLanguage);
+        }
+    }
+
+
     function initApp() {
         updateUserMenu();
         loadUserSettingsFromFirestore();
         startMainApp();
     }
 
-    // ==========================================
-    // LINK GOOGLE ACCOUNT VỚI PASSWORD
-    // ==========================================
     async function linkGoogleWithPassword() {
         if (!currentUser) return;
-
         try {
             const userDoc = await db.collection('users').doc(currentUser.uid).get();
             const userData = userDoc.data();
             const providers = userData.provider ?
                 (Array.isArray(userData.provider) ? userData.provider : [userData.provider]) : [];
 
-            // ✅ NẾU ĐÃ CÓ GOOGLE VÀ PASSWORD → KHÔNG CẦN LÀM GÌ
             if (providers.includes('google') && providers.includes('password')) {
-                console.log('Account already linked');
                 return;
             }
-
-            // ✅ NẾU CHỈ CÓ GOOGLE → TỰ ĐỘNG LINK VỚI PASSWORD (NẾU USER TỰ TẠO MẬT KHẨU)
-            // (Code này chỉ để tham khảo, không tự động chạy)
-
         } catch (error) {
             console.error('Error checking account link:', error);
         }
     }
 
-    // Gọi hàm khi app khởi động
     auth.onAuthStateChanged(async (user) => {
         if (!user) {
             window.location.href = 'login.html';
             return;
         }
-
         currentUser = user;
-        console.log('✅ Authenticated as:', user.email);
-
         await checkAndCreateUserDocument(user);
-        await linkGoogleWithPassword(); // ⬅️ THÊM DÒNG NÀY
-
+        await linkGoogleWithPassword();
         initApp();
     });
-
 
     function updateUserMenu() {
         if (currentUser) {
             if (userName) userName.textContent = currentUser.displayName || 'User';
             if (userEmail) userEmail.textContent = currentUser.email;
             if (userAvatar && currentUser.photoURL) {
-                userAvatar.innerHTML = `
-                <img src="${currentUser.photoURL}" 
-                     alt="Avatar" 
-                     style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; cursor: pointer;">
-            `;
+                userAvatar.innerHTML = `<img src="${currentUser.photoURL}" alt="Avatar" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; cursor: pointer;">`;
             }
-
-            // ✅ THÊM DÒNG NÀY: Hiện nút báo cáo ngay lập tức khi có user
             if (reportsMenu) reportsMenu.style.display = 'block';
         }
     }
@@ -248,7 +275,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (settings.backgroundColor) localStorage.setItem('backgroundColor', settings.backgroundColor);
                 if (settings.notificationTimeBefore !== undefined) localStorage.setItem('notificationTimeBefore', settings.notificationTimeBefore);
 
-                // Apply settings ngay lập tức
                 loadSettings();
             }
         } catch (error) {
@@ -260,50 +286,13 @@ document.addEventListener("DOMContentLoaded", function () {
         let notesListener = null;
         let tagsListener = null;
 
-        // === HÀM TẠO QUERY ĐỘNG THEO FILTER ===
-        function buildNotesQuery() {
-            const filterValue = filterSelect.value;
-            const dayFilter = dayOfWeekSelect.value;
-
-            let query = db.collection('notes').where('userId', '==', currentUser.uid);
-
-            // ✅ FILTER THEO NGÀY TRONG TUẦN
-            if (dayFilter !== 'all') {
-                query = query.where('dayOfWeek', '==', parseInt(dayFilter));
-            }
-
-            // ✅ FILTER THEO TRẠNG THÁI
-            if (filterValue === 'completed') {
-                query = query.where('completed', '==', true);
-            } else if (filterValue === 'incomplete') {
-                query = query.where('completed', '==', false);
-            } else if (filterValue === 'temporary') {
-                query = query.where('isTemporaryTask', '==', true);
-            } else if (filterValue !== 'all' && filterValue !== 'overdue') {
-                // ✅ FILTER THEO TAG
-                query = query.where('tag', '==', filterValue);
-            }
-
-            // ✅ SẮP XẾP
-            query = query.orderBy('time');
-
-            return query;
-        }
-
-        // === HÀM KHỞI TẠO/CẬP NHẬT LISTENER ===
         function initNotesListener() {
-            // Tắt listener cũ
-            if (notesListener) {
-                notesListener();
-            }
+            if (notesListener) notesListener(); // Tắt listener cũ
 
-            // Tạo query mới
             const query = db.collection('notes').where('userId', '==', currentUser.uid);
 
-            // Bật listener mới
             notesListener = query.onSnapshot((snapshot) => {
-                // Làm mới mảng notes
-                notes = [];
+                notes = []; // Reset mảng
 
                 snapshot.forEach((doc) => {
                     const noteData = doc.data();
@@ -313,18 +302,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 notesLoaded = true;
                 if (tagsLoaded) {
-                    // ✅ QUAN TRỌNG: Gọi loadNotes() để tự động sắp xếp, lọc và render lại UI
-                    loadNotes();
+                    loadNotes(); // ✅ Gọi hàm loadNotes() để lọc và render
                 }
             }, (error) => {
-                if (error.code === 'failed-precondition') {
-                    const indexUrl = error.message.match(/https:\/\/[^\s]+/)?.[0];
-                    if (indexUrl) {
-                        showToast('Vui lòng tạo Index Firestore (xem Console)', 'error');
-                    }
-                } else {
-                    showToast('Lỗi tải dữ liệu: ' + error.message, 'error');
-                }
+                showToast('Lỗi tải dữ liệu: ' + error.message, 'error');
             });
         }
 
@@ -372,46 +353,6 @@ document.addEventListener("DOMContentLoaded", function () {
         refreshReportBtn.addEventListener('click', () => {
             generateTimeReports();
         });
-
-        // === FILTER CLIENT-SIDE (Search + Overdue) ===
-        function applyClientSideFilters() {
-            const loadingEl = document.getElementById('notesLoading');
-            if (loadingEl) loadingEl.style.display = 'none';
-
-            const searchTerm = searchInput.value.toLowerCase();
-            const filterValue = filterSelect.value;
-
-            document.querySelectorAll('.note-card').forEach(card => {
-                const noteId = card.querySelector('[data-id]').getAttribute('data-id');
-                const note = notes.find(n => n.id === noteId);
-
-                if (!note) {
-                    card.style.display = 'none';
-                    return;
-                }
-
-                let shouldShow = true;
-
-                // ✅ SEARCH FILTER
-                if (searchTerm) {
-                    const matchTitle = note.title.toLowerCase().includes(searchTerm);
-                    const matchContent = note.content.toLowerCase().includes(searchTerm);
-                    const noteTag = tags.find(t => t.id === note.tag);
-                    const matchTag = noteTag && getTagName(noteTag).toLowerCase().includes(searchTerm);
-
-                    shouldShow = matchTitle || matchContent || matchTag;
-                }
-
-                // ✅ OVERDUE FILTER (không thể query từ Firestore)
-                if (shouldShow && filterValue === 'overdue') {
-                    shouldShow = !note.completed && isNoteOverdue(note);
-                }
-
-                card.style.display = shouldShow ? 'block' : 'none';
-            });
-
-            updateEmptyState();
-        }
 
         // === TAGS LISTENER ===
         tagsListener = db.collection('tags')
@@ -463,6 +404,8 @@ document.addEventListener("DOMContentLoaded", function () {
         e.preventDefault();
 
         const submitBtn = document.getElementById("submitNoteBtn");
+        if (!submitBtn) return;
+
         const originalText = submitBtn.textContent;
 
         submitBtn.disabled = true;
@@ -471,10 +414,22 @@ document.addEventListener("DOMContentLoaded", function () {
         const title = document.getElementById("noteTitle").value;
         const content = document.getElementById("noteContent").value;
         const time = document.getElementById("noteTime").value;
-        const dayOfWeek = parseInt(document.getElementById("noteDayOfWeek").value);
+
+        // ✅ FIX: Kiểm tra dayCheckboxes tồn tại
+        const dayCheckboxes = document.querySelectorAll('input[name="dayOfWeek"]:checked');
+
+        if (!dayCheckboxes || dayCheckboxes.length === 0) {
+            showToast('Vui lòng chọn ít nhất 1 ngày trong tuần!', 'warning');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+            return;
+        }
+
+        const selectedDays = Array.from(dayCheckboxes).map(cb => parseInt(cb.value));
+
         const expectedDuration = parseInt(document.getElementById("expectedDuration").value) || 30;
         const selectedTagRadio = document.querySelector('input[name="noteTag"]:checked');
-        const isTemporaryTask = document.getElementById("isTemporaryTask").checked; // ⬅️ MỚI
+        const isTemporaryTask = document.getElementById("isTemporaryTask")?.checked || false;
 
         const subTasks = getSubTasksFromForm();
 
@@ -486,13 +441,13 @@ document.addEventListener("DOMContentLoaded", function () {
         } else {
             showToast('toastNoTagDefined', 'warning');
             submitBtn.disabled = false;
-            submitBtn.textContent = originalText;
+            submitBtn.innerHTML = originalText;
             return;
         }
 
         try {
             if (editingNoteKey) {
-                // === CHẾ ĐỘ SỬA ===
+                // CHẾ ĐỘ SỬA
                 const currentNote = notes.find(n => n.id === editingNoteKey);
 
                 const updatedData = {
@@ -500,11 +455,10 @@ document.addEventListener("DOMContentLoaded", function () {
                     content,
                     tag: tagId,
                     time,
-                    dayOfWeek,
+                    dayOfWeek: currentNote.dayOfWeek,
                     expectedDuration,
                     subTasks,
-                    isTemporaryTask, // ⬅️ MỚI: Lưu flag này
-                    // ✅ Giữ nguyên trạng thái cũ
+                    isTemporaryTask,
                     completed: currentNote.completed || false,
                     actualDuration: currentNote.actualDuration || null,
                     startTime: currentNote.startTime || null,
@@ -516,35 +470,48 @@ document.addEventListener("DOMContentLoaded", function () {
                 showToast('toastNoteUpdated', 'success');
 
             } else {
-                // === CHẾ ĐỘ THÊM MỚI ===
-                const newNoteData = {
-                    userId: currentUser.uid,
-                    title,
-                    content,
-                    tag: tagId,
-                    time,
-                    dayOfWeek,
-                    expectedDuration,
-                    subTasks,
-                    isTemporaryTask, // ⬅️ MỚI: Lưu flag này
-                    actualDuration: null,
-                    startTime: null,
-                    endTime: null,
-                    isOnTime: null,
-                    completed: false // ⬅️ QUAN TRỌNG: Tạo note bình thường (chưa hoàn thành)
-                };
+                // CHẾ ĐỘ THÊM MỚI
+                const batch = db.batch();
 
-                await db.collection('notes').add(newNoteData);
-                showToast('toastNoteSaved', 'success');
+                selectedDays.forEach(dayOfWeek => {
+                    const newNoteData = {
+                        userId: currentUser.uid,
+                        title,
+                        content,
+                        tag: tagId,
+                        time,
+                        dayOfWeek,
+                        expectedDuration,
+                        subTasks,
+                        isTemporaryTask,
+                        actualDuration: null,
+                        startTime: null,
+                        endTime: null,
+                        isOnTime: null,
+                        completed: false
+                    };
+
+                    const newDocRef = db.collection('notes').doc();
+                    batch.set(newDocRef, newNoteData);
+                });
+
+                await batch.commit();
+
+                if (selectedDays.length === 1) {
+                    showToast('toastNoteSaved', 'success');
+                } else {
+                    showToast(`Đã tạo ${selectedDays.length} công việc cho các ngày đã chọn!`, 'success');
+                }
             }
 
             closeAddNoteModal();
 
         } catch (error) {
+            console.error('Error saving note:', error);
             showToast('toastErrorSavingNote', 'error');
         } finally {
             submitBtn.disabled = false;
-            submitBtn.textContent = originalText;
+            submitBtn.innerHTML = originalText;
         }
     }
 
@@ -596,7 +563,7 @@ document.addEventListener("DOMContentLoaded", function () {
             newTagNameEnInput.value = '';
             newTagIconInput.value = '';
             newTagColorInput.value = '#4f46e5';
-            addOrUpdateTagBtn.textContent = translations[currentLanguage].addTagBtn;
+            addOrUpdateTagBtn.textContent = 'Thêm Thẻ';
             editingTagId = null;
         } catch (error) {
             showToast('toastErrorTagSave', 'error');
@@ -621,51 +588,78 @@ document.addEventListener("DOMContentLoaded", function () {
     closeModalBtn.addEventListener("click", closeAddNoteModal);
     noteForm.addEventListener("submit", handleNoteSubmit);
     let searchTimeout;
-    searchInput.addEventListener("input", () => {
+    searchInput.removeEventListener('input', searchInput._searchHandler); // Xóa listener cũ
+    searchInput._searchHandler = () => {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
-            filterNotes();
+            loadNotes(); // ✅ ĐÚNG
         }, 300);
-    });
-    filterSelect.addEventListener("change", filterNotes);
+    };
+    searchInput.addEventListener('input', searchInput._searchHandler);
     cancelDeleteBtn.addEventListener("click", closeConfirmModal);
-    // Thay thế logic của nút xác nhận trong Modal
-    // Thay thế logic của nút xác nhận trong Modal
     confirmDeleteBtn.addEventListener("click", async function () {
-        if (!noteToDeleteId) return;
+        // ✅ THAY ĐỔI: Kiểm tra xem có BẤT KỲ ID nào cần xử lý không
+        if (!noteToDeleteId && !tagToDeleteId && !currentViewingReport && !clearCacheRequested) return;
 
         if (currentConfirmAction === 'delete') {
-            // 1. Xóa ghi chú bình thường
             try {
                 await db.collection('notes').doc(noteToDeleteId).delete();
-                showToast('toastNoteDeleted', 'error');
+                showToast('Đã xóa công việc!', 'success');
             } catch (error) {
-                showToast('toastErrorDeletingNote', 'error');
+                showToast('Lỗi khi xóa công việc', 'error');
             }
-            closeConfirmModal(); // Đóng sau khi xóa xong
+            closeConfirmModal();
 
         } else if (currentConfirmAction === 'complete_temp') {
-            // 2. Xóa Task tạm thời (Có hiệu ứng mờ dần)
             if (elementToAnimate) {
-                elementToAnimate.classList.add('deleting'); // Thêm class animation
+                elementToAnimate.classList.add('deleting');
             }
-
-            // LƯU TẠM ID TRƯỚC KHI ĐÓNG MODAL
             const idToDelete = noteToDeleteId;
-
-            closeConfirmModal(); // Đóng modal ngay lập tức để user nhìn thấy hiệu ứng
+            closeConfirmModal();
 
             setTimeout(async () => {
                 try {
-                    // SỬ DỤNG BIẾN TẠM idToDelete Ở ĐÂY
                     await db.collection('notes').doc(idToDelete).delete();
-                    showToast('temporaryTaskDeleted', 'success');
+                    showToast('Đã xóa công việc tạm thời', 'success');
                 } catch (error) {
-                    showToast('toastErrorDeletingNote', 'error');
+                    showToast('Lỗi khi xóa', 'error');
                 }
-            }, 500); // Đợi 500ms cho animation chạy xong rồi mới xóa data trên Firebase
+            }, 500);
+
+        } else if (currentConfirmAction === 'delete_tag') {
+            try {
+                const notesUsingThisTag = await db.collection('notes')
+                    .where('userId', '==', currentUser.uid)
+                    .where('tag', '==', tagToDeleteId).get();
+
+                const batch = db.batch();
+                notesUsingThisTag.forEach(doc => { batch.update(doc.ref, { tag: null }); });
+                await batch.commit();
+                await db.collection('tags').doc(tagToDeleteId).delete();
+                showToast('Thẻ đã được xóa!', 'success');
+            } catch (error) {
+                showToast('Lỗi khi xóa thẻ.', 'error');
+            }
+            closeConfirmModal();
+
+        } else if (currentConfirmAction === 'delete_report') {
+            try {
+                await db.collection('reports').doc(currentViewingReport.id).delete();
+                receivedReports = receivedReports.filter(r => r.id !== currentViewingReport.id);
+                showToast('Đã xóa báo cáo!', 'success');
+                closeViewReportModal();
+            } catch (error) {
+                showToast('Lỗi khi xóa báo cáo!', 'error');
+            }
+            closeConfirmModal();
+
+        } else if (currentConfirmAction === 'clear_cache') {
+            window.autoTranslate.clearCache();
+            showToast('Đã xóa bộ nhớ dịch!', 'success');
+            closeConfirmModal();
         }
     });
+
 
 
     closeViewModalBtn.addEventListener("click", closeViewNoteModal);
@@ -680,7 +674,6 @@ document.addEventListener("DOMContentLoaded", function () {
     addOrUpdateTagBtn.addEventListener("click", handleAddOrUpdateTag);
     saveSettingsBtn.addEventListener("click", saveSettings);
 
-    dayOfWeekSelect.addEventListener("change", filterNotes);
     exportExcelBtn.addEventListener("click", exportToExcel);
 
     if (userAvatar) {
@@ -697,6 +690,7 @@ document.addEventListener("DOMContentLoaded", function () {
         addQRSubTaskInput();
     });
 
+
     document.addEventListener('click', (e) => {
         if (userAvatar && !userAvatar.contains(e.target) && !userDropdown.contains(e.target)) {
             userDropdown.style.display = 'none';
@@ -705,13 +699,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
-            const lang = translations[currentLanguage]; // MỚI
-            try {
-                await firebase.auth().signOut();
-                window.location.href = 'login.html';
-            } catch (error) {
-                showToast(lang.logoutError, 'error');
-            }
+            try { await firebase.auth().signOut(); window.location.href = 'login.html'; }
+            catch (error) { showToast('Lỗi khi đăng xuất!', 'error'); }
         });
     }
 
@@ -788,1085 +777,35 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Lưu thay đổi Hồ sơ (Chỉ tên hiển thị)
+
     if (saveProfileBtn) {
         saveProfileBtn.addEventListener("click", async () => {
-            const lang = translations[currentLanguage];
             const newName = profileNameInput.value.trim();
-
-            if (!newName) {
-                showToast("Tên không được để trống", "warning");
-                return;
-            }
-
+            if (!newName) { showToast("Tên không được để trống", "warning"); return; }
             try {
                 await currentUser.updateProfile({ displayName: newName });
                 await db.collection('users').doc(currentUser.uid).update({ name: newName });
-
                 updateUserMenu();
-
-                showToast(lang.toastProfileUpdated, "success");
+                showToast("Cập nhật hồ sơ thành công!", "success");
                 profileModal.classList.remove("active");
                 document.body.style.overflow = "auto";
-
-            } catch (error) {
-                showToast("Lỗi khi cập nhật hồ sơ: " + error.message, "error");
-            }
+            } catch (error) { showToast("Lỗi khi cập nhật hồ sơ: " + error.message, "error"); }
         });
     }
 
-    // Gửi email đổi mật khẩu
     if (sendPasswordResetBtn) {
         sendPasswordResetBtn.addEventListener("click", async () => {
-            const lang = translations[currentLanguage]; // Lấy ngôn ngữ hiện tại
             if (!currentUser.email) return;
-
             try {
                 await auth.sendPasswordResetEmail(currentUser.email);
-                showToast(lang.toastResetEmailSent, "success");
-            } catch (error) {
-                showToast(lang.toastResetEmailError + error.message, "error");
-            }
+                showToast("Đã gửi email đổi mật khẩu! Vui lòng kiểm tra hộp thư.", "success");
+            } catch (error) { showToast("Lỗi gửi email: " + error.message, "error"); }
         });
     }
 
     if (pasteLinkBtn) pasteLinkBtn.addEventListener("click", handlePasteLink);
 
-    // === Tag Management Functions ===
-
-    const translations = {
-        'vi': {
-            'appNameLabel': 'Tên ứng dụng:',
-            'appNamePlaceholder': 'Ví dụ: Ghi Chú Của Tôi',
-            'defaultAppName': 'Ghi chú của tôi',
-            'searchInputPlaceholder': 'Tìm kiếm ghi chú...',
-            'allNotesOption': 'Tất cả ghi chú',
-            'completedNotesOption': 'Đã hoàn thành',
-            'incompleteNotesOption': 'Chưa hoàn thành',
-            'overdueNotesOption': 'Trễ giờ',
-            'allDaysOption': 'Tất cả các ngày',
-            'sunday': 'Chủ Nhật',
-            'monday': 'Thứ Hai',
-            'tuesday': 'Thứ Ba',
-            'wednesday': 'Thứ Tư',
-            'thursday': 'Thứ Năm',
-            'friday': 'Thứ Sáu',
-            'saturday': 'Thứ Bảy',
-            'noteDayOfWeekLabel': 'Ngày trong tuần',
-            'exportExcelBtn': '<i class="fas fa-file-excel"></i> Xuất Excel',
-            'excelFileName': 'Ghi_Chu_Tuan',
-            'excelSheetAll': 'Tất cả',
-            'excelColTitle': 'Tiêu đề',
-            'excelColContent': 'Nội dung',
-            'excelColTime': 'Thời gian',
-            'excelColTag': 'Thẻ',
-            'excelColStatus': 'Trạng thái',
-            'excelColDay': 'Ngày',
-            'toastExcelExported': 'File Excel đã được xuất!',
-            'toastNoNotesToExport': 'Không có ghi chú nào để xuất!',
-            'addNoteBtn': '<i class="fas fa-plus"></i> Thêm mới',
-            'completeAllBtn': '<i class="fas fa-check-double"></i> Hoàn thành tất cả',
-            'resetAllBtn': '<i class="fas fa-redo"></i> Bắt đầu ngày mới',
-            'emptyStateTitle': 'Không có ghi chú',
-            'emptyStateText': 'Thêm ghi chú đầu tiên của bạn bằng cách nhấp vào nút "Thêm"',
-            'newNoteModalTitle': 'Ghi chú mới',
-            'editNoteModalTitle': 'Sửa ghi chú',
-            'noteTitleLabel': 'Tiêu đề',
-            'noteContentLabel': 'Nội dung',
-            'noteTimeLabel': 'Thời gian',
-            'noteTagLabel': 'Thẻ',
-            'manageTagsBtn': '<i class="fas fa-tags"></i> Quản lý Thẻ',
-            'saveNoteBtn': 'Lưu ghi chú',
-            'updateNoteBtn': 'Cập nhật',
-            'viewNoteModalTitlePlaceholder': '',
-            'viewNoteTagLabel': 'Thẻ',
-            'viewNoteStatusLabel': 'Trạng thái',
-            'viewNoteTimeLabel': 'Thời gian',
-            'viewNoteContentLabel': 'Nội dung',
-            'completedStatus': 'Đã hoàn thành',
-            'incompleteStatus': 'Chưa hoàn thành',
-            'uncompleteBtn': 'Chưa hoàn thành',
-            'confirmDeleteText': 'Bạn có chắc chắn muốn xóa ghi chú này không?',
-            'cancelBtn': 'Hủy',
-            'deleteBtnConfirm': 'Xóa',
-            'manageTagsModalTitle': 'Quản lý Thẻ Ghi Chú',
-            'newTagNameLabel': 'Tên Thẻ Mới/Sửa',
-            'newTagIconLabel': 'Icon (Font Awesome class)',
-            'newTagColorLabel': 'Màu Thẻ',
-            'addTagBtn': 'Thêm Thẻ',
-            'updateTagBtn': 'Cập nhật Thẻ',
-            'currentTagsTitle': 'Các Thẻ Hiện Có:',
-            'noTagsMessage': 'Chưa có thẻ nào. Hãy thêm một thẻ mới!',
-            'settingsModalTitle': 'Cài đặt',
-            'noteColumnsLabel': 'Số cột hiển thị ghi chú:',
-            'column1': '1 cột',
-            'column2': '2 cột',
-            'column3': '3 cột',
-            'column4': '4 cột',
-            'backgroundColorLabel': 'Màu nền trang web:',
-            'languageLabel': 'Ngôn ngữ:',
-            'vietnameseLanguage': 'Tiếng Việt',
-            'englishLanguage': 'English',
-            'saveSettingsBtn': 'Lưu Cài đặt',
-            'notificationTimeBeforeLabel': 'Thông báo trước (phút):',
-            'notificationTimeBefore': 'Thông báo trước (phút):',
-            'noNotification': 'Không thông báo',
-            'minutes5': '5 phút',
-            'minutes10': '10 phút',
-            'minutes15': '15 phút',
-            'minutes30': '30 phút',
-            'minutes60': '60 phút',
-            'notificationReminder': "Nhắc nhở: Đến giờ '{title}'",
-            'toastNoteCompleted': 'Ghi chú đã hoàn thành!',
-            'toastNoteReset': 'Ghi chú đã được đặt lại!',
-            'toastAllNotesCompleted': 'Tất cả ghi chú đã được đánh dấu hoàn thành!',
-            'toastAllNotesReset': 'Tất cả ghi chú đã được đặt lại!',
-            'toastNoNotesToComplete': 'Tất cả ghi chú đã hoàn thành rồi!',
-            'toastNoNotesToReset': 'Không có ghi chú nào cần đặt lại!',
-            'toastNoteDeleted': 'Ghi chú đã bị xóa!',
-            'toastErrorDeletingNote': 'Lỗi khi xóa ghi chú.',
-            'toastNoteSaved': 'Ghi chú đã được thêm!',
-            'toastNoteUpdated': 'Ghi chú đã được cập nhật!',
-            'toastErrorSavingNote': 'Lỗi khi lưu ghi chú.',
-            'toastTagNameRequired': 'Tên thẻ không được để trống!',
-            'toastTagExists': 'Tên thẻ đã tồn tại!',
-            'toastTagUpdated': 'Thẻ đã được cập nhật!',
-            'toastTagAdded': 'Thẻ đã được thêm!',
-            'toastErrorTagSave': 'Lỗi khi thêm/cập nhật thẻ.',
-            'confirmDeleteTag': 'Bạn có chắc chắn muốn xóa thẻ này? Những ghi chú sử dụng thẻ này sẽ mất liên kết thẻ.',
-            'toastTagDeleted': 'Thẻ đã được xóa và ghi chú liên quan đã được cập nhật!',
-            'toastErrorDeletingTag': 'Lỗi khi xóa thẻ.',
-            'toastErrorLoadingNotes': 'Lỗi khi tải ghi chú.',
-            'toastErrorLoadingTags': 'Lỗi khi tải thẻ.',
-            'toastEditingTag': 'Đang chỉnh sửa thẻ: ',
-            'toastNoTagDefined': 'Chưa có thẻ nào được định nghĩa! Vui lòng thêm thẻ trước.',
-            'toastSettingsSaved': 'Cài đặt đã được lưu!',
-            'toastErrorCompletingNote': 'Lỗi khi hoàn thành ghi chú.',
-            'toastErrorResettingNote': 'Lỗi khi đặt lại ghi chú.',
-            'toastErrorCompletingAllNotes': 'Lỗi khi hoàn thành tất cả ghi chú.',
-            'toastErrorResettingAllNotes': 'Lỗi khi đặt lại tất cả ghi chú.',
-            'helpTextFontAwesome': 'Tìm icon tại: <a href="https://fontawesome.com/v5/search?m=free" target="_blank">Font Awesome Free</a> (chỉ copy class, ví dụ: `fas fa-plane`)',
-            'helpTextColorPicker': 'Chọn màu nền cho thẻ.',
-            'newTagNamePlaceholder': 'Ví dụ: Công việc',
-            'newTagNameEnPlaceholder': 'Ví dụ: Work',
-            'newTagIconPlaceholder': 'Ví dụ: fas fa-briefcase',
-            'footerText': '&copy; 2025 Lập trình và phát triển web - Châu Kil',
-            'expectedDurationLabel': 'Thời gian dự kiến (phút)',
-            'timeReportsBtn': '<i class="fas fa-chart-line"></i> Báo cáo thời gian',
-            'scanQRBtn': '<i class="fas fa-qrcode"></i> Quét QR',
-            'qrScannerTitle': 'Quét mã QR ghi chú',
-            'qrGeneratorTitle': 'Mã QR của ghi chú',
-            'addFromQRTitle': 'Xác nhận thêm ghi chú',
-            'timeReportsModalTitle': 'Báo cáo thời gian',
-            'totalTasksText': 'Tổng số task',
-            'onTimeTasksText': 'Hoàn thành đúng hạn',
-            'lateTasksText': 'Hoàn thành trễ',
-            'avgTimeText': 'Thời gian TB',
-            'detailsTitle': 'Chi tiết các task trong tuần',
-            'uploadQRImageBtn': '<i class="fas fa-image"></i> Chọn ảnh',
-            'pasteLinkBtn': '<i class="fas fa-paste"></i> Nhập link',
-            'downloadQRBtn': '<i class="fas fa-download"></i> Tải ảnh QR',
-            'copyQRLinkBtn': '<i class="fas fa-link"></i> Sao chép link',
-            'qrScanSuccess': 'Đã quét thành công!',
-            'qrScanError': 'Không thể quét mã QR. Vui lòng thử lại.',
-            'qrLinkCopied': 'Đã sao chép link!',
-            'qrDownloaded': 'Đã tải ảnh QR thành công!',
-            'invalidQRData': 'Dữ liệu không hợp lệ!',
-            'cameraPermissionDenied': 'Vui lòng cho phép truy cập camera.',
-            'clipboardError': 'Không thể đọc bộ nhớ tạm hoặc dữ liệu sai.',
-            'expectedTime': 'Dự kiến',
-            'actualTime': 'Thực tế',
-            'savedTime': 'Tiết kiệm',
-            'overtime': 'Vượt',
-            'noTimeReports': 'Chưa có dữ liệu báo cáo',
-            'qrConfirmMessage': 'Ghi chú được quét từ mã QR. Vui lòng xem lại thông tin:',
-            'qrConfirmAddBtn': 'Xác nhận thêm',
-            'undefinedTag': 'Không xác định',
-            'helpExpectedDuration': 'Ước tính thời gian cần để hoàn thành (5, 10, 15, 30, 60 phút...)',
-            'timeUnit': 'phút',
-            'qrOtherOptions': 'Tùy chọn khác',
-            'excelColExpected': 'Dự kiến (phút)',
-            'excelColActual': 'Thực tế (phút)',
-            'excelColPerformance': 'Hiệu suất',
-            'performanceOnTime': 'Đúng giờ',
-            'performanceLate': 'Trễ',
-            'reportSchedule': 'Lịch',
-            'reportCompleted': 'Xong',
-            'menuProfile': 'Hồ sơ',
-            'menuLogout': 'Đăng xuất',
-            'profileModalTitle': 'Thông tin tài khoản',
-            'labelProfileEmail': 'Email',
-            'labelProfileName': 'Tên hiển thị',
-            'labelProfileJoined': 'Ngày tham gia',
-            'labelSecurity': 'Bảo mật',
-            'textSendResetBtn': 'Gửi email đổi mật khẩu',
-            'helpTextReset': 'Chúng tôi sẽ gửi liên kết đổi mật khẩu đến email của bạn.',
-            'saveProfileBtn': 'Lưu thay đổi',
-            // Thông báo Toast
-            'toastNameRequired': 'Tên không được để trống',
-            'toastProfileUpdated': 'Cập nhật hồ sơ thành công!',
-            'toastProfileUpdateError': 'Lỗi khi cập nhật hồ sơ: ',
-            'confirmResetPassword': 'Gửi email đổi mật khẩu đến {email}?',
-            'toastResetEmailSent': 'Đã gửi email! Vui lòng kiểm tra hộp thư.',
-            'toastResetEmailError': 'Lỗi gửi email: ',
-            'subTasksLabel': 'Công việc cần thực hiện',
-            'addSubTask': 'Thêm công việc',
-            'subTaskPlaceholder': 'Mô tả công việc...',
-            'subTaskLinkPlaceholder': 'Đường dẫn (tùy chọn)',
-            'copyLink': 'Copy',
-            'linkCopied': 'Đã sao chép đường dẫn!',
-            'linkCopyFailed': 'Không thể sao chép!',
-            'noLink': 'Chưa có đường dẫn!',
-            'subTaskUpdated': 'Đã cập nhật trạng thái!',
-            'minOneSubTask': 'Phải có ít nhất 1 công việc!',
-            'subTaskUpdateError': 'Lỗi khi cập nhật!',
-            'generateQR': 'Tạo mã QR',
-            'editBtn': 'Sửa',
-            'deleteBtn': 'Xóa',
-            'timeStatusCompleted': 'Đã hoàn thành',
-            'timeStatusOverdueHours': 'Trễ {hours} giờ {minutes} phút',
-            'timeStatusOverdueMinutes': 'Trễ {minutes} phút',
-            'timeStatusNow': 'Sắp đến giờ (dưới 5 phút)',
-            'timeStatusSoon': 'Sắp đến ({minutes} phút nữa)',
-            'timeStatusUpcoming': 'Sắp đến ({minutes} phút nữa)',
-            'timeStatusFutureHours': 'Còn {hours} giờ {minutes} phút',
-            'timeStatusFutureMinutes': 'Còn {minutes} phút',
-            'subTaskProgressLabel': 'Tiến độ công việc',
-            'noNotesToCompleteOnDay': 'Không có ghi chú nào cần hoàn thành cho ngày này!',
-            'completeAllSuccess': 'Đã hoàn thành tất cả ghi chú của {day}!',
-            'completeAllError': 'Lỗi khi hoàn thành tất cả ghi chú.',
-
-            'noNotesToResetOnDay': 'Không có ghi chú nào để đặt lại trong ngày này!',
-            'resetAllSuccess': 'Đã đặt lại (Bắt đầu ngày mới) cho {day}!',
-            'resetAllError': 'Lỗi khi đặt lại ghi chú.',
-            'excelColSubTasks': 'Công việc con (Tiến độ)',
-            'manageTagsShort': 'Quản lý thẻ',
-            'reportsReceived': 'Báo cáo đã nhận',
-            'noReports': 'Chưa có báo cáo nào',
-            'sendReport': 'Gửi báo cáo',
-            'reportPreviewTitle': 'Tóm tắt báo cáo tuần này',
-            'totalTasks': 'Tổng task',
-            'completedTasks': 'Hoàn thành',
-            'onTimeTasks': 'Đúng hạn',
-            'lateTasks': 'Trễ hạn',
-            'recipientEmail': 'Email người nhận',
-            'recipientEmailPlaceholder': 'manager@example.com',
-            'reportMessage': 'Ghi chú (tùy chọn)',
-            'reportMessagePlaceholder': 'Thêm ghi chú cho người nhận...',
-            'sendReportBtn': 'Gửi báo cáo',
-            'reportDetailTitle': 'Chi tiết báo cáo',
-            'reportFrom': 'Từ',
-            'reportSentDate': 'Ngày gửi',
-            'reportNote': 'Ghi chú',
-            'deleteReport': 'Xóa báo cáo',
-            'markAsRead': 'Đánh dấu đã đọc',
-            'statisticsTitle': 'Thống kê',
-            'avgCompletionTime': 'Thời gian hoàn thành trung bình',
-            'analysisByTag': 'Phân tích theo thẻ',
-            'distributionByDay': 'Phân bố theo ngày',
-            'tasksDone': 'task',
-            'sendingReport': 'Đang gửi...',
-            'reportSentSuccess': 'Đã gửi báo cáo thành công đến',
-            'emailNotRegistered': 'Email này chưa đăng ký tài khoản trong hệ thống!',
-            'cannotSendToSelf': 'Không thể gửi báo cáo cho chính mình!',
-            'enterRecipientEmail': 'Vui lòng nhập email người nhận!',
-            'invalidEmail': 'Email không hợp lệ!',
-            'errorSendingReport': 'Lỗi khi gửi báo cáo',
-            'reportDeleted': 'Đã xóa báo cáo!',
-            'errorDeletingReport': 'Lỗi khi xóa báo cáo!',
-            'markedAsRead': 'Đã đánh dấu đọc!',
-            'confirmDeleteReport': 'Bạn có chắc chắn muốn xóa báo cáo này không?',
-            'tasksCompleted': 'task hoàn thành',
-            'justNow': 'Vừa xong',
-            'minutesAgo': 'phút trước',
-            'hoursAgo': 'giờ trước',
-            'daysAgo': 'ngày trước',
-            'sendReportToOthers': 'Gửi báo cáo này cho người khác',
-            'onlyRegisteredUsers': 'Chỉ gửi được cho người dùng đã đăng ký trong hệ thống',
-            'reportRecipients': 'Người nhận gợi ý',
-            'avgTime': 'Thời gian TB',
-            'completionRate': 'Tỷ lệ hoàn thành',
-            'dashboardTitle': 'Bảng điều khiển Báo cáo',
-            'dashboardWeeklySummary': 'Tổng hợp hiệu suất tuần này',
-            'submittedReports': 'Đã nộp báo cáo',
-            'employee': 'Người gửi',
-            'onTimeRate': 'Tỷ lệ đúng hạn',
-            'details': 'Chi tiết',
-            'loadingData': 'Đang tải dữ liệu...',
-            'notConfigured': 'Tài khoản của bạn chưa được cấu hình để quản lý.',
-            'noReportsThisWeek': 'Chưa có báo cáo nào trong tuần này.',
-            'minutesPerTask': 'phút/công việc',
-            'settingsTitle': 'Cài đặt',
-            'accountTitle': 'Tài khoản',
-            'temporaryTaskLabel': 'Task tạm thời',
-            'helpTemporaryTask': 'Ghi chú sẽ tự động xóa khi hoàn thành',
-            'temporaryTaskDeleted': 'Task tạm thời đã hoàn thành và xóa!',
-            'confirmDeleteTemporary': 'Task này sẽ bị xóa vĩnh viễn sau khi hoàn thành. Tiếp tục?',
-            'excelColTemporary': 'Task tạm',
-            'yes': 'Có',
-            'no': 'Không',
-            'temporaryNotesOption': 'Công việc tạm thời',
-            'loadingText': 'Đang tải...',
-            'createPasswordTitle': 'Tạo Mật Khẩu',
-            'createPasswordDesc': 'Tài khoản của bạn chỉ có thể đăng nhập bằng Google. Tạo mật khẩu để có thể đăng nhập bằng email.',
-            'newPasswordLabel': 'Mật khẩu mới',
-            'newPasswordPlaceholder': 'Ít nhất 6 ký tự',
-            'confirmPasswordLabel': 'Xác nhận mật khẩu',
-            'confirmPasswordPlaceholder': 'Nhập lại mật khẩu',
-            'createPasswordBtnText': 'Tạo mật khẩu',
-            'linkGoogleTitle': 'Liên kết tài khoản Google',
-            'linkGoogleDesc': 'Thêm phương thức đăng nhập bằng Google để dễ dàng truy cập tài khoản.',
-            'linkGoogleBtnText': 'Liên kết với Google',
-            'welcomeNewUser': 'Chào mừng {name}! Đã tạo hồ sơ cho bạn.',
-            'pleaseLoginFirst': 'Vui lòng đăng nhập trước!',
-            'accountHasPassword': 'Tài khoản đã có mật khẩu rồi!',
-            'passwordCreatedSuccess': 'Đã tạo mật khẩu thành công! Bạn có thể đăng nhập bằng email/password.',
-            'weakPassword': 'Mật khẩu quá yếu! Vui lòng dùng ít nhất 6 ký tự.',
-            'emailHasPassword': 'Email này đã có mật khẩu!',
-            'errorCreatingPassword': 'Lỗi tạo mật khẩu: ',
-            'linkingGoogle': 'Đang liên kết...',
-            'googleLinkedSuccess': 'Đã liên kết với Google thành công! Bạn có thể đăng nhập bằng cả 2 phương thức.',
-            'googleAlreadyLinked': 'Tài khoản Google này đã được liên kết với tài khoản khác!',
-            'authPopupClosed': 'Bạn đã đóng cửa sổ xác thực!',
-            'errorLinking': 'Lỗi liên kết: ',
-            'logoutError': 'Lỗi khi đăng xuất!',
-            'filterByPeriod': 'Lọc theo:',
-            'thisWeek': 'Tuần này',
-            'thisMonth': 'Tháng này',
-            'thisYear': 'Năm này',
-            'allTime': 'Tất cả',
-            'specificWeek': 'Chọn tuần...',
-            'specificMonth': 'Chọn tháng...',
-            'specificYear': 'Chọn năm...',
-            'refreshBtn': 'Làm mới',
-            'weekText': 'Tuần',
-            'monthText': 'Tháng',
-            'yearText': 'Năm',
-            'avgTimeDiffText': 'TB Tiết kiệm/Vượt (phút)',
-            'taskCountText': 'Số lượng Task',
-            'minutesAxisText': 'Phút (Tiết kiệm > 0 | Vượt < 0)',
-
-        },
-        'en': {
-            'appNameLabel': 'App Name:',
-            'appNamePlaceholder': 'Example: My Notes',
-            'defaultAppName': 'My notes',
-            'searchInputPlaceholder': 'Search notes...',
-            'allNotesOption': 'All notes',
-            'completedNotesOption': 'Completed',
-            'incompleteNotesOption': 'Incomplete',
-            'overdueNotesOption': 'Overdue',
-            'allDaysOption': 'All days',
-            'sunday': 'Sunday',
-            'monday': 'Monday',
-            'tuesday': 'Tuesday',
-            'wednesday': 'Wednesday',
-            'thursday': 'Thursday',
-            'friday': 'Friday',
-            'saturday': 'Saturday',
-            'noteDayOfWeekLabel': 'Day of week',
-            'exportExcelBtn': '<i class="fas fa-file-excel"></i> Export Excel',
-            'excelFileName': 'Weekly_Notes',
-            'excelSheetAll': 'All',
-            'excelColTitle': 'Title',
-            'excelColContent': 'Content',
-            'excelColTime': 'Time',
-            'excelColTag': 'Tag',
-            'excelColStatus': 'Status',
-            'excelColDay': 'Day',
-            'toastExcelExported': 'Excel file exported!',
-            'toastNoNotesToExport': 'No notes to export!',
-            'addNoteBtn': '<i class="fas fa-plus"></i> Add new',
-            'completeAllBtn': '<i class="fas fa-check-double"></i> Complete all',
-            'resetAllBtn': '<i class="fas fa-redo"></i> Start new day',
-            'emptyStateTitle': 'No notes available',
-            'emptyStateText': 'Add your first note by clicking the "Add" button',
-            'newNoteModalTitle': 'New Note',
-            'editNoteModalTitle': 'Edit Note',
-            'noteTitleLabel': 'Title',
-            'noteContentLabel': 'Content',
-            'noteTimeLabel': 'Time',
-            'noteTagLabel': 'Tag',
-            'manageTagsBtn': '<i class="fas fa-tags"></i> Manage Tags',
-            'saveNoteBtn': 'Save Note',
-            'updateNoteBtn': 'Update',
-            'viewNoteModalTitlePlaceholder': '',
-            'viewNoteTagLabel': 'Tag',
-            'viewNoteStatusLabel': 'Status',
-            'viewNoteTimeLabel': 'Time',
-            'viewNoteContentLabel': 'Content',
-            'completedStatus': 'Completed',
-            'incompleteStatus': 'Incomplete',
-            'uncompleteBtn': 'Mark as Incomplete',
-            'confirmDeleteText': 'Are you sure you want to delete this note?',
-            'cancelBtn': 'Cancel',
-            'deleteBtnConfirm': 'Delete',
-            'manageTagsModalTitle': 'Manage Note Tags',
-            'newTagNameLabel': 'New/Edit Tag Name',
-            'newTagIconLabel': 'Icon (Font Awesome class)',
-            'newTagColorLabel': 'Tag Color',
-            'addTagBtn': 'Add Tag',
-            'updateTagBtn': 'Update Tag',
-            'currentTagsTitle': 'Current Tags:',
-            'noTagsMessage': 'No tags yet. Add a new one!',
-            'settingsModalTitle': 'Settings',
-            'noteColumnsLabel': 'Number of note columns:',
-            'column1': '1 column',
-            'column2': '2 columns',
-            'column3': '3 columns',
-            'column4': '4 columns',
-            'backgroundColorLabel': 'Website background color:',
-            'languageLabel': 'Language:',
-            'vietnameseLanguage': 'Vietnamese',
-            'englishLanguage': 'English',
-            'saveSettingsBtn': 'Save Settings',
-            'notificationTimeBeforeLabel': 'Notify before (minutes):',
-            'notificationTimeBefore': 'Notify before (minutes):',
-            'noNotification': 'No notification',
-            'minutes5': '5 minutes',
-            'minutes10': '10 minutes',
-            'minutes15': '15 minutes',
-            'minutes30': '30 minutes',
-            'minutes60': '60 minutes',
-            'notificationReminder': "Reminder: Time for '{title}'",
-            'toastNoteCompleted': 'Note completed!',
-            'toastNoteReset': 'Note reset!',
-            'toastAllNotesCompleted': 'All notes marked as complete!',
-            'toastAllNotesReset': 'All notes have been reset!',
-            'toastNoNotesToComplete': 'All notes are already completed!',
-            'toastNoNotesToReset': 'No notes to reset!',
-            'toastNoteDeleted': 'Note deleted!',
-            'toastErrorDeletingNote': 'Error deleting note.',
-            'toastNoteSaved': 'Note added!',
-            'toastNoteUpdated': 'Note updated!',
-            'toastErrorSavingNote': 'Error saving note.',
-            'toastTagNameRequired': 'Tag name cannot be empty!',
-            'toastTagExists': 'Tag name already exists!',
-            'toastTagUpdated': 'Tag updated!',
-            'toastTagAdded': 'Tag added!',
-            'toastErrorTagSave': 'Error adding/updating tag.',
-            'confirmDeleteTag': 'Are you sure you want to delete this tag? Notes using this tag will lose their tag association.',
-            'toastTagDeleted': 'Tag deleted and related notes updated!',
-            'toastErrorDeletingTag': 'Error deleting tag.',
-            'toastErrorLoadingNotes': 'Error loading notes.',
-            'toastErrorLoadingTags': 'Error loading tags.',
-            'toastEditingTag': 'Editing tag: ',
-            'toastNoTagDefined': 'No tags defined yet! Please add a tag first.',
-            'toastSettingsSaved': 'Settings saved!',
-            'toastErrorCompletingNote': 'Error completing note.',
-            'toastErrorResettingNote': 'Error resetting note.',
-            'toastErrorCompletingAllNotes': 'Error completing all notes.',
-            'toastErrorResettingAllNotes': 'Error resetting all notes.',
-            'completeBtn': 'Complete',
-            'helpTextFontAwesome': 'Find icons at: <a href="https://fontawesome.com/v5/search?m=free" target="_blank">Font Awesome Free</a> (copy class only, e.g., `fas fa-plane`)',
-            'helpTextColorPicker': 'Select a background color for the tag.',
-            'newTagNamePlaceholder': 'Example: Work',
-            'newTagNameEnPlaceholder': 'Example: Work',
-            'newTagIconPlaceholder': 'Example: fas fa-briefcase',
-            'footerText': '&copy; 2025 Web Programming and Development - Chau Kil',
-            'expectedDurationLabel': 'Expected Duration (minutes)',
-            'timeReportsBtn': '<i class="fas fa-chart-line"></i> Time Reports',
-            'scanQRBtn': '<i class="fas fa-qrcode"></i> Scan QR',
-            'qrScannerTitle': 'Scan Note QR Code',
-            'qrGeneratorTitle': 'Note QR Code',
-            'addFromQRTitle': 'Confirm Add Note',
-            'timeReportsModalTitle': 'Time Reports',
-            'totalTasksText': 'Total Tasks',
-            'onTimeTasksText': 'On Time',
-            'lateTasksText': 'Late',
-            'avgTimeText': 'Avg Time',
-            'detailsTitle': 'Weekly Task Details',
-            'uploadQRImageBtn': '<i class="fas fa-image"></i> Choose Image',
-            'pasteLinkBtn': '<i class="fas fa-paste"></i> Paste Link',
-            'downloadQRBtn': '<i class="fas fa-download"></i> Download QR',
-            'copyQRLinkBtn': '<i class="fas fa-link"></i> Copy Link',
-            'qrScanSuccess': 'Scanned successfully!',
-            'qrScanError': 'Cannot scan QR code. Please try again.',
-            'qrLinkCopied': 'Link copied!',
-            'qrDownloaded': 'QR image downloaded successfully!',
-            'invalidQRData': 'Invalid data!',
-            'cameraPermissionDenied': 'Please allow camera access.',
-            'clipboardError': 'Cannot read clipboard or invalid data.',
-            'expectedTime': 'Expected',
-            'actualTime': 'Actual',
-            'savedTime': 'Saved',
-            'overtime': 'Over',
-            'noTimeReports': 'No reports data',
-            'qrConfirmMessage': 'Note scanned from QR code. Please review the information:',
-            'qrConfirmAddBtn': 'Confirm Add',
-            'undefinedTag': 'Undefined',
-            'helpExpectedDuration': 'Estimated time to complete (5, 10, 15, 30, 60 minutes...)',
-            'timeUnit': 'minutes',
-            'qrOtherOptions': 'Other options',
-            'excelColExpected': 'Expected (min)',
-            'excelColActual': 'Actual (min)',
-            'excelColPerformance': 'Performance',
-            'performanceOnTime': 'On Time',
-            'performanceLate': 'Late',
-            'reportSchedule': 'Schedule',
-            'reportCompleted': 'Done',
-            'menuProfile': 'Profile',
-            'menuLogout': 'Logout',
-            'profileModalTitle': 'Account Information',
-            'labelProfileEmail': 'Email',
-            'labelProfileName': 'Display Name',
-            'labelProfileJoined': 'Joined Date',
-            'labelSecurity': 'Security',
-            'textSendResetBtn': 'Send Password Reset Email',
-            'helpTextReset': 'We will send a password reset link to your email.',
-            'saveProfileBtn': 'Save Changes',
-            // Toast Messages
-            'toastNameRequired': 'Display name cannot be empty',
-            'toastProfileUpdated': 'Profile updated successfully!',
-            'toastProfileUpdateError': 'Error updating profile: ',
-            'confirmResetPassword': 'Send password reset email to {email}?',
-            'toastResetEmailSent': 'Email sent! Please check your inbox.',
-            'toastResetEmailError': 'Error sending email: ',
-            'subTasksLabel': 'Tasks to Complete',
-            'addSubTask': 'Add Task',
-            'subTaskPlaceholder': 'Task description...',
-            'subTaskLinkPlaceholder': 'Link (optional)',
-            'copyLink': 'Copy',
-            'linkCopied': 'Link copied!',
-            'linkCopyFailed': 'Cannot copy!',
-            'noLink': 'No link available!',
-            'subTaskUpdated': 'Status updated!',
-            'minOneSubTask': 'Must have at least 1 task!',
-            'subTaskUpdateError': 'Update error!',
-            'generateQR': 'Generate QR',
-            'editBtn': 'Edit',
-            'deleteBtn': 'Delete',
-            'timeStatusCompleted': 'Completed',
-            'timeStatusOverdueHours': '{hours}h {minutes}m overdue',
-            'timeStatusOverdueMinutes': '{minutes}m overdue',
-            'timeStatusNow': 'Starting soon (under 5 min)',
-            'timeStatusSoon': 'Coming up in {minutes} min',
-            'timeStatusUpcoming': 'Coming up in {minutes} min',
-            'timeStatusFutureHours': '{hours}h {minutes}m remaining',
-            'timeStatusFutureMinutes': '{minutes}m remaining',
-            'subTaskProgressLabel': 'Sub-tasks Progress',
-            'noNotesToCompleteOnDay': 'No notes to complete for this day!',
-            'completeAllSuccess': 'All notes for {day} completed!',
-            'completeAllError': 'Error completing all notes.',
-
-            'noNotesToResetOnDay': 'No notes to reset for this day!',
-            'confirmResetDay': 'Are you sure you want to reset {count} notes for {day}?',
-            'resetAllSuccess': 'Reset (Start new day) for {day} successful!',
-            'resetAllError': 'Error resetting notes.',
-            'excelColSubTasks': 'Sub-tasks (Progress)',
-            'manageTagsShort': 'Manage tag',
-            'reportsReceived': 'Received Reports',
-            'noReports': 'No reports yet',
-            'sendReport': 'Send Report',
-            'reportPreviewTitle': 'This Week Report Summary',
-            'totalTasks': 'Total Tasks',
-            'completedTasks': 'Completed',
-            'onTimeTasks': 'On Time',
-            'lateTasks': 'Late',
-            'recipientEmail': 'Recipient Email',
-            'recipientEmailPlaceholder': 'manager@example.com',
-            'reportMessage': 'Note (optional)',
-            'reportMessagePlaceholder': 'Add a note for the recipient...',
-            'sendReportBtn': 'Send Report',
-            'reportDetailTitle': 'Report Details',
-            'reportFrom': 'From',
-            'reportSentDate': 'Sent Date',
-            'reportNote': 'Note',
-            'deleteReport': 'Delete Report',
-            'markAsRead': 'Mark as Read',
-            'statisticsTitle': 'Statistics',
-            'avgCompletionTime': 'Average Completion Time',
-            'analysisByTag': 'Analysis by Tag',
-            'distributionByDay': 'Distribution by Day',
-            'tasksDone': 'tasks',
-            'sendingReport': 'Sending...',
-            'reportSentSuccess': 'Report sent successfully to',
-            'emailNotRegistered': 'This email is not registered in the system!',
-            'cannotSendToSelf': 'Cannot send report to yourself!',
-            'enterRecipientEmail': 'Please enter recipient email!',
-            'invalidEmail': 'Invalid email!',
-            'errorSendingReport': 'Error sending report',
-            'reportDeleted': 'Report deleted!',
-            'errorDeletingReport': 'Error deleting report!',
-            'markedAsRead': 'Marked as read!',
-            'confirmDeleteReport': 'Are you sure you want to delete this report?',
-            'tasksCompleted': 'tasks completed',
-            'justNow': 'Just now',
-            'minutesAgo': 'minutes ago',
-            'hoursAgo': 'hours ago',
-            'daysAgo': 'days ago',
-            'sendReportToOthers': 'Send this report to others',
-            'onlyRegisteredUsers': 'Only send to registered users in the system',
-            'reportRecipients': 'Recent Recipients',
-            'avgTime': 'Avg Time',
-            'completionRate': 'Completion Rate',
-            'dashboardTitle': 'Reporting Dashboard',
-            'dashboardWeeklySummary': 'This Week Performance Summary',
-            'submittedReports': 'Submitted Reports',
-            'employee': 'Sender',
-            'onTimeRate': 'On-Time Rate',
-            'details': 'Details',
-            'loadingData': 'Loading data...',
-            'noReportsThisWeek': 'No reports submitted this week.',
-            'minutesPerTask': 'min/task',
-            'settingsTitle': 'Settings',
-            'accountTitle': 'Account',
-            'temporaryTaskLabel': 'Temporary Task',
-            'helpTemporaryTask': 'Note will be auto-deleted when completed',
-            'temporaryTaskDeleted': 'Temporary task completed and deleted!',
-            'confirmDeleteTemporary': 'This task will be permanently deleted after completion. Continue?',
-            'excelColTemporary': 'Temporary',
-            'yes': 'Yes',
-            'no': 'No',
-            'temporaryNotesOption': 'Temporary tasks',
-            'loadingText': 'Loading...',
-            'createPasswordTitle': 'Create Password',
-            'createPasswordDesc': 'Your account can only login with Google. Create a password to login with email.',
-            'newPasswordLabel': 'New Password',
-            'newPasswordPlaceholder': 'At least 6 characters',
-            'confirmPasswordLabel': 'Confirm Password',
-            'confirmPasswordPlaceholder': 'Re-enter password',
-            'createPasswordBtnText': 'Create Password',
-            'linkGoogleTitle': 'Link Google Account',
-            'linkGoogleDesc': 'Add Google sign-in method for easier access to your account.',
-            'linkGoogleBtnText': 'Link with Google',
-            'welcomeNewUser': 'Welcome {name}! Your profile has been created.',
-            'pleaseLoginFirst': 'Please login first!',
-            'accountHasPassword': 'Account already has a password!',
-            'passwordCreatedSuccess': 'Password created successfully! You can now login with email/password.',
-            'weakPassword': 'Password is too weak! Please use at least 6 characters.',
-            'emailHasPassword': 'This email already has a password!',
-            'errorCreatingPassword': 'Error creating password: ',
-            'linkingGoogle': 'Linking...',
-            'googleLinkedSuccess': 'Google account linked successfully! You can login using both methods.',
-            'googleAlreadyLinked': 'This Google account is already linked to another user!',
-            'authPopupClosed': 'Authentication window closed!',
-            'errorLinking': 'Linking error: ',
-            'logoutError': 'Error logging out!',
-            'filterByPeriod': 'Filter by:',
-            'thisWeek': 'This Week',
-            'thisMonth': 'This Month',
-            'thisYear': 'This Year',
-            'allTime': 'All Time',
-            'specificWeek': 'Select week...',
-            'specificMonth': 'Select month...',
-            'specificYear': 'Select year...',
-            'refreshBtn': 'Refresh',
-            'weekText': 'Week',
-            'monthText': 'Month',
-            'yearText': 'Year',
-            'avgTimeDiffText': 'Avg Saved/Overtime (min)',
-            'taskCountText': 'Task Count',
-            'minutesAxisText': 'Minutes (Saved > 0 | Over < 0)',
-
-        }
-    };
-
     let currentLanguage = localStorage.getItem('language') || 'vi'; // Mặc định là Tiếng Việt
-
-    function applyTranslations() {
-        const lang = translations[currentLanguage];
-
-        // Helper functions để gán giá trị an toàn, tránh lỗi "null"
-        const setText = (id, text) => {
-            const el = document.getElementById(id);
-            if (el) el.textContent = text;
-        };
-        const setHTML = (id, html) => {
-            const el = document.getElementById(id);
-            if (el) el.innerHTML = html;
-        };
-        const setPlaceholder = (id, text) => {
-            const el = document.getElementById(id);
-            if (el) el.placeholder = text;
-        };
-        const updateOption = (selectId, value, text) => {
-            const opt = document.querySelector(`#${selectId} option[value="${value}"]`);
-            if (opt) opt.textContent = text;
-        };
-
-        // --- HEADER & GENERAL ---
-        const headerTitle = document.querySelector('.header h1');
-        if (headerTitle) headerTitle.textContent = localStorage.getItem('appName') || lang.defaultAppName;
-
-        if (document.getElementById('settingsBtn')) document.getElementById('settingsBtn').title = lang.settingsTitle;
-        if (document.getElementById('userAvatar')) document.getElementById('userAvatar').title = lang.accountTitle;
-
-        // Slogan không có trong file HTML mới, nhưng để lại cho an toàn
-        const headerSlogan = document.querySelector('.header p');
-        if (headerSlogan) headerSlogan.textContent = lang.appSlogan;
-
-        setPlaceholder('searchInput', lang.searchInputPlaceholder);
-
-        const filterSelectAll = document.querySelector('#filterSelect option[value="all"]');
-        if (filterSelectAll) filterSelectAll.textContent = lang.allNotesOption;
-
-        const completedOption = document.querySelector('#filterSelect option[value="completed"]');
-        if (completedOption) completedOption.textContent = lang.completedNotesOption;
-
-        const overdueOption = document.querySelector('#filterSelect option[value="overdue"]');
-        if (overdueOption) overdueOption.textContent = lang.overdueNotesOption;
-
-        // THÊM 2 DÒNG NÀY VÀO:
-        const temporaryOption = document.querySelector('#filterSelect option[value="temporary"]');
-        if (temporaryOption) temporaryOption.textContent = lang.temporaryNotesOption;
-
-        // --- PROFILE MODAL (PHẦN MỚI THÊM) ---
-        const loadingTextEl = document.querySelector('#notesLoading p');
-        if (loadingTextEl) loadingTextEl.textContent = lang.loadingText;
-
-        const createPwdTitle = document.querySelector('#createPasswordSection h4');
-        if (createPwdTitle) createPwdTitle.innerHTML = `<i class="fas fa-key"></i> ${lang.createPasswordTitle}`;
-
-        const createPwdDesc = document.querySelector('#createPasswordSection p');
-        if (createPwdDesc) createPwdDesc.textContent = lang.createPasswordDesc;
-
-        const newPwdLabel = document.querySelector('label[for="newPasswordInput"]');
-        if (newPwdLabel) newPwdLabel.textContent = lang.newPasswordLabel;
-        setPlaceholder('newPasswordInput', lang.newPasswordPlaceholder);
-
-        const confPwdLabel = document.querySelector('label[for="confirmNewPasswordInput"]');
-        if (confPwdLabel) confPwdLabel.textContent = lang.confirmPasswordLabel;
-        setPlaceholder('confirmNewPasswordInput', lang.confirmPasswordPlaceholder);
-
-        const createPwdBtn = document.getElementById('createPasswordBtn');
-        if (createPwdBtn) createPwdBtn.innerHTML = `<i class="fas fa-plus-circle"></i> ${lang.createPasswordBtnText}`;
-
-        const linkGoogleTitle = document.querySelector('#linkGoogleSection h4');
-        if (linkGoogleTitle) linkGoogleTitle.innerHTML = `<i class="fab fa-google"></i> ${lang.linkGoogleTitle}`;
-
-        const linkGoogleDesc = document.querySelector('#linkGoogleSection p');
-        if (linkGoogleDesc) linkGoogleDesc.textContent = lang.linkGoogleDesc;
-
-        const linkGoogleBtnEl = document.getElementById('linkGoogleBtn');
-        if (linkGoogleBtnEl) linkGoogleBtnEl.innerHTML = `<i class="fab fa-google"></i> ${lang.linkGoogleBtnText}`;
-
-        setHTML('helpTextIcon', lang.helpTextFontAwesome);
-        setText('helpTextColor', lang.helpTextColorPicker);
-        setHTML('footerText', lang.footerText);
-
-        // --- BUTTONS ---
-        setHTML('scanQRBtn', lang.scanQRBtn);
-        setHTML('addNoteBtn', lang.addNoteBtn);
-        setHTML('completeAllBtn', lang.completeAllBtn);
-        setHTML('resetAllBtn', lang.resetAllBtn);
-        setHTML('exportExcelBtn', lang.exportExcelBtn);
-        setHTML('timeReportsBtn', lang.timeReportsBtn);
-        const tempTaskLabel = document.getElementById('temporaryTaskLabel');
-        if (tempTaskLabel) {
-            // Đổi chữ hiển thị
-            tempTaskLabel.textContent = lang.temporaryTaskLabel;
-            // Đổi chữ khi hover chuột vào (tooltip)
-            tempTaskLabel.title = lang.helpTemporaryTask;
-        }
-
-        // --- EMPTY STATE ---
-        const emptyTitle = document.querySelector('#emptyState h3');
-        if (emptyTitle) emptyTitle.textContent = lang.emptyStateTitle;
-        const emptyText = document.querySelector('#emptyState p');
-        if (emptyText) emptyText.textContent = lang.emptyStateText;
-
-        // --- NOTE FORM ---
-        const noteTitleLabel = document.querySelector('label[for="noteTitle"]');
-        if (noteTitleLabel) noteTitleLabel.textContent = lang.noteTitleLabel;
-
-        const noteContentLabel = document.querySelector('label[for="noteContent"]');
-        if (noteContentLabel) noteContentLabel.textContent = lang.noteContentLabel;
-
-        const noteTimeLabel = document.querySelector('label[for="noteTime"]');
-        if (noteTimeLabel) noteTimeLabel.textContent = lang.noteTimeLabel;
-
-        setText('notificationTimeBeforeLabel', lang.notificationTimeBeforeLabel);
-        setText('noteDayOfWeekLabel', lang.noteDayOfWeekLabel);
-        setText('expectedDurationLabel', lang.expectedDurationLabel);
-        setText('helpExpectedDuration', lang.helpExpectedDuration);
-        setText('subTasksLabel', lang.subTasksLabel);
-
-        const addSubTaskBtn = document.getElementById('addSubTaskBtn');
-        if (addSubTaskBtn) addSubTaskBtn.innerHTML = `<i class="fas fa-plus"></i> ${lang.addSubTask}`;
-
-        // Cập nhật Label "Thẻ" một cách an toàn
-        const noteTagLabelElements = document.querySelectorAll('.form-group label');
-        noteTagLabelElements.forEach(label => {
-            const span = label.querySelector('span');
-            if (span && label.nextElementSibling && label.nextElementSibling.id === 'noteTagsContainer') {
-                span.textContent = lang.noteTagLabel;
-            }
-        });
-
-        // Cập nhật nút "Quản lý"
-        const manageTagsBtn = document.getElementById('manageTagsBtn');
-        if (manageTagsBtn) {
-            const text = lang.manageTagsShort || 'Quản lý';
-            manageTagsBtn.innerHTML = `<i class="fas fa-cog"></i> ${text}`;
-        }
-
-        // --- SELECT OPTIONS ---
-        ['dayOfWeekSelect', 'noteDayOfWeek', 'qrNoteDayOfWeek'].forEach(id => {
-            if (document.getElementById(id)) {
-                if (id === 'dayOfWeekSelect') updateOption(id, 'all', lang.allDaysOption);
-                updateOption(id, '0', lang.sunday); updateOption(id, '1', lang.monday); updateOption(id, '2', lang.tuesday);
-                updateOption(id, '3', lang.wednesday); updateOption(id, '4', lang.thursday); updateOption(id, '5', lang.friday);
-                updateOption(id, '6', lang.saturday);
-            }
-        });
-        updateOption('notificationTimeBefore', '0', lang.noNotification); updateOption('notificationTimeBefore', '5', lang.minutes5);
-        updateOption('notificationTimeBefore', '10', lang.minutes10); updateOption('notificationTimeBefore', '15', lang.minutes15);
-        updateOption('notificationTimeBefore', '30', lang.minutes30); updateOption('notificationTimeBefore', '60', lang.minutes60);
-
-        // --- SETTINGS MODAL ---
-        const settingsTitle = document.querySelector('#settingsModal .modal-header .modal-title');
-        if (settingsTitle) settingsTitle.textContent = lang.settingsModalTitle;
-        setText('appNameLabel', lang.appNameLabel);
-        setPlaceholder('appNameInput', lang.appNamePlaceholder);
-        const noteColumnsLabel = document.querySelector('label[for="noteColumns"]');
-        if (noteColumnsLabel) noteColumnsLabel.textContent = lang.noteColumnsLabel;
-        updateOption('noteColumns', '1', lang.column1); updateOption('noteColumns', '2', lang.column2);
-        updateOption('noteColumns', '3', lang.column3); updateOption('noteColumns', '4', lang.column4);
-        const bgColorLabel = document.querySelector('label[for="backgroundColor"]');
-        if (bgColorLabel) bgColorLabel.textContent = lang.backgroundColorLabel;
-        const langLabel = document.querySelector('label[for="languageSelect"]');
-        if (langLabel) langLabel.textContent = lang.languageLabel;
-        updateOption('languageSelect', 'vi', lang.vietnameseLanguage);
-        updateOption('languageSelect', 'en', lang.englishLanguage);
-        setText('saveSettingsBtn', lang.saveSettingsBtn);
-
-        // --- MANAGE TAGS MODAL ---
-        const manageTagsTitle = document.querySelector('#manageTagsModal .modal-header .modal-title');
-        if (manageTagsTitle) manageTagsTitle.textContent = lang.manageTagsModalTitle;
-        const tagNameLabel = document.querySelector('label[for="newTagName"]');
-        if (tagNameLabel) tagNameLabel.textContent = lang.newTagNameLabel;
-        const tagNameEnLabel = document.querySelector('label[for="newTagNameEn"]');
-        if (tagNameEnLabel) tagNameEnLabel.textContent = currentLanguage === 'vi' ? 'Tên Thẻ (Tiếng Anh)' : 'Tag Name (English)';
-        const tagIconLabel = document.querySelector('label[for="newTagIcon"]');
-        if (tagIconLabel) tagIconLabel.textContent = lang.newTagIconLabel;
-        const tagColorLabel = document.querySelector('label[for="newTagColor"]');
-        if (tagColorLabel) tagColorLabel.textContent = lang.newTagColorLabel;
-        const currentTagsTitle = document.querySelector('#manageTagsModal h4');
-        if (currentTagsTitle) currentTagsTitle.textContent = lang.currentTagsTitle;
-        setPlaceholder('newTagName', lang.newTagNamePlaceholder);
-        if (document.getElementById('newTagNameEn')) setPlaceholder('newTagNameEn', lang.newTagNameEnPlaceholder);
-        setPlaceholder('newTagIcon', lang.newTagIconPlaceholder);
-
-        // Cập nhật message trong Current Tags List
-        const currentTagsList = document.getElementById('currentTagsList');
-        if (currentTagsList && (currentTagsList.textContent.includes('Chưa có thẻ nào.') || currentTagsList.textContent.includes('No tags yet.'))) {
-            currentTagsList.innerHTML = `<p>${lang.noTagsMessage}</p>`;
-        }
-
-        // --- VIEW NOTE MODAL ---
-        const viewTagLabel = document.querySelector('label[for="viewNoteTag"]');
-        if (viewTagLabel) viewTagLabel.textContent = lang.viewNoteTagLabel;
-
-        const viewStatusLabel = document.querySelector('label[for="viewNoteStatus"]');
-        if (viewStatusLabel) viewStatusLabel.textContent = lang.viewNoteStatusLabel;
-
-        const viewTimeLabel = document.querySelector('label[for="viewNoteTime"]');
-        if (viewTimeLabel) viewTimeLabel.textContent = lang.viewNoteTimeLabel;
-
-        const viewContentLabel = document.querySelector('#viewNoteContent')?.parentElement?.querySelector('.form-label');
-        if (viewContentLabel) viewContentLabel.textContent = lang.viewNoteContentLabel;
-
-        const viewSubTasksLabel = document.querySelector('#viewSubTasksGroup .form-label');
-        if (viewSubTasksLabel) viewSubTasksLabel.textContent = lang.subTasksLabel;
-
-        // --- CONFIRM DELETE MODAL ---
-        const confirmText = document.querySelector('.confirmation-text');
-        if (confirmText) {
-            // Kiểm tra xem đang thực hiện hành động nào để hiển thị đúng ngôn ngữ
-            if (currentConfirmAction === 'complete_temp') {
-                confirmText.textContent = lang.confirmDeleteTemporary;
-            } else {
-                confirmText.textContent = lang.confirmDeleteText;
-            }
-        }
-        setText('cancelDeleteBtn', lang.cancelBtn);
-        setText('confirmDeleteBtn', lang.deleteBtnConfirm);
-
-        // --- QR MODALS ---
-        setText('qrScannerTitle', lang.qrScannerTitle);
-        setText('qrGeneratorTitle', lang.qrGeneratorTitle);
-        setText('addFromQRTitle', lang.addFromQRTitle);
-        setHTML('uploadQRImageBtn', lang.uploadQRImageBtn);
-        setHTML('pasteLinkBtn', lang.pasteLinkBtn);
-        setHTML('downloadQRBtn', lang.downloadQRBtn);
-        setHTML('copyQRLinkBtn', lang.copyQRLinkBtn);
-        setText('qrConfirmMessage', lang.qrConfirmMessage);
-        setText('qrSubTasksLabel', lang.subTasksLabel);
-        const addQRSubTaskBtn = document.getElementById('addQRSubTaskBtn');
-        if (addQRSubTaskBtn) addQRSubTaskBtn.innerHTML = `<i class="fas fa-plus"></i> ${lang.addSubTask}`;
-        setText('qrOtherOptionsText', lang.qrOtherOptions);
-        const qrConfirmBtn = document.querySelector('#addFromQRModal button[type="submit"]');
-        if (qrConfirmBtn) qrConfirmBtn.innerHTML = `<i class="fas fa-check"></i> ${lang.qrConfirmAddBtn}`;
-
-        // QR Form labels
-        const qrFormLabels = document.querySelectorAll('#addFromQRForm .form-label');
-        if (qrFormLabels.length >= 5) {
-            qrFormLabels[0].textContent = lang.noteTitleLabel;
-            qrFormLabels[1].textContent = lang.noteDayOfWeekLabel;
-            qrFormLabels[2].textContent = lang.noteContentLabel;
-            qrFormLabels[3].textContent = lang.noteTimeLabel;
-            qrFormLabels[4].textContent = lang.expectedDurationLabel;
-            qrFormLabels[5].textContent = lang.noteTagLabel;
-        }
-
-        // Cập nhật placeholder cho QR sub-task inputs
-        document.querySelectorAll('#qrSubTasksContainer .sub-task-text-input').forEach(input => {
-            input.placeholder = lang.subTaskPlaceholder;
-        });
-
-        document.querySelectorAll('#qrSubTasksContainer .sub-task-link-input').forEach(input => {
-            input.placeholder = lang.subTaskLinkPlaceholder;
-        });
-
-        // --- TIME REPORTS MODAL ---
-        setText('timeReportsModalTitle', lang.timeReportsModalTitle);
-        setText('totalTasksText', lang.totalTasksText);
-        setText('onTimeTasksText', lang.onTimeTasksText);
-        setText('lateTasksText', lang.lateTasksText);
-        setText('avgTimeText', lang.avgTimeText);
-        setText('detailsTitle', lang.detailsTitle);
-
-        const filterByPeriodLabel = document.getElementById('filterByPeriodLabel');
-        if (filterByPeriodLabel) filterByPeriodLabel.innerHTML = `<i class="fas fa-calendar-alt"></i> ${lang.filterByPeriod}`;
-
-        setText('optThisWeek', lang.thisWeek);
-        setText('optThisMonth', lang.thisMonth);
-        setText('optThisYear', lang.thisYear);
-        setText('optAllTime', lang.allTime);
-        setText('optSpecificWeek', lang.specificWeek);
-        setText('optSpecificMonth', lang.specificMonth);
-        setText('optSpecificYear', lang.specificYear);
-        setText('refreshBtnText', lang.refreshBtn);
-
-        // --- PROFILE MODAL ---
-        setHTML('profileBtn', `<i class="fas fa-user"></i> ${lang.menuProfile}`);
-        setHTML('logoutBtn', `<i class="fas fa-sign-out-alt"></i> ${lang.menuLogout}`);
-        setText('profileModalTitle', lang.profileModalTitle);
-        setText('labelProfileEmail', lang.labelProfileEmail);
-        setText('labelProfileName', lang.labelProfileName);
-        setText('labelProfileJoined', lang.labelProfileJoined);
-        setText('labelSecurity', lang.labelSecurity);
-        setText('textSendResetBtn', lang.textSendResetBtn);
-        setText('helpTextReset', lang.helpTextReset);
-        setText('saveProfileBtn', lang.saveProfileBtn);
-
-        // --- DYNAMIC ELEMENTS ---
-        document.querySelectorAll('.sub-task-text-input').forEach(input => input.placeholder = lang.subTaskPlaceholder);
-        document.querySelectorAll('.sub-task-link-input').forEach(input => input.placeholder = lang.subTaskLinkPlaceholder);
-        document.querySelectorAll('.copy-link-btn').forEach(btn => {
-            const icon = btn.querySelector('i');
-            btn.innerHTML = '';
-            if (icon) btn.appendChild(icon);
-            btn.innerHTML += ` ${lang.copyLink}`;
-        });
-
-        // --- DYNAMIC BUTTON STATES ---
-        if (document.getElementById('modalTitle')) document.getElementById('modalTitle').textContent = editingNoteKey ? lang.editNoteModalTitle : lang.newNoteModalTitle;
-        if (document.getElementById('submitNoteBtn')) document.getElementById('submitNoteBtn').textContent = editingNoteKey ? lang.updateNoteBtn : lang.saveNoteBtn;
-        if (document.getElementById('addOrUpdateTagBtn')) document.getElementById('addOrUpdateTagBtn').innerHTML = editingTagId ? lang.updateTagBtn : lang.addTagBtn;
-        if (document.getElementById('sendReportFromTimeReportsBtn')) {
-            document.getElementById('sendReportFromTimeReportsBtn').addEventListener('click', () => {
-                closeTimeReportsModal(); // Đóng modal Time Reports
-                openSendReportModal();   // Mở modal gửi báo cáo
-            });
-        }
-
-        // ========================================
-        // --- REPORTS SECTION ---
-        // ========================================
-
-
-        // Send Report Modal
-        const sendReportTitle = document.querySelector('#sendReportModal .modal-title');
-        if (sendReportTitle) sendReportTitle.textContent = lang.sendReport;
-
-        const reportPreviewTitle = document.querySelector('#reportPreview h4');
-        if (reportPreviewTitle) reportPreviewTitle.textContent = lang.reportPreviewTitle;
-
-        // Preview Stats Labels
-        const previewStatLabels = document.querySelectorAll('#reportPreview .stat-item label');
-        if (previewStatLabels.length >= 4) {
-            previewStatLabels[0].textContent = lang.totalTasks;
-            previewStatLabels[1].textContent = lang.completedTasks;
-            previewStatLabels[2].textContent = lang.onTimeTasks;
-            previewStatLabels[3].textContent = lang.lateTasks;
-        }
-
-        // Send Report Form
-        const recipientEmailLabel = document.querySelector('label[for="recipientEmail"]');
-        if (recipientEmailLabel) {
-            recipientEmailLabel.innerHTML = `<i class="fas fa-envelope"></i> ${lang.recipientEmail}`;
-        }
-        setPlaceholder('recipientEmail', lang.recipientEmailPlaceholder);
-
-        const reportMessageLabel = document.querySelector('#sendReportModal label[for="reportMessage"]');
-        if (reportMessageLabel) {
-            reportMessageLabel.innerHTML = `<i class="fas fa-comment"></i> ${lang.reportMessage}`;
-        }
-
-        setPlaceholder('reportMessage', lang.reportMessagePlaceholder);
-
-        const sendReportHelpText = document.querySelector('#sendReportModal .help-text');
-        if (sendReportHelpText) {
-            sendReportHelpText.innerHTML = `<i class="fas fa-info-circle"></i> ${lang.onlyRegisteredUsers}`;
-        }
-
-        const sendReportSubmitBtn = document.getElementById('sendReportSubmitBtn');
-        if (sendReportSubmitBtn) {
-            sendReportSubmitBtn.innerHTML = `<i class="fas fa-paper-plane"></i> ${lang.sendReportBtn}`;
-        }
-
-        // View Report Modal
-        const viewReportTitle = document.querySelector('#viewReportModal .modal-title');
-        if (viewReportTitle) viewReportTitle.textContent = lang.reportDetailTitle;
-
-        setText('reportFromLabel', lang.reportFrom);
-        setText('reportDateLabel', lang.reportSentDate);
-        setText('reportNoteLabel', lang.reportNote);
-
-        // Delete & Mark as Read Buttons
-        const deleteReportBtn = document.getElementById('deleteReportBtn');
-        if (deleteReportBtn) {
-            deleteReportBtn.innerHTML = `<i class="fas fa-trash"></i> ${lang.deleteReport}`;
-        }
-
-        const markAsReadBtn = document.getElementById('markAsReadBtn');
-        if (markAsReadBtn) {
-            markAsReadBtn.innerHTML = `<i class="fas fa-check"></i> ${lang.markAsRead}`;
-        }
-
-        // Send Report Footer Button (in Time Reports Modal)
-        const sendReportFromTimeReportsBtn = document.getElementById('sendReportFromTimeReportsBtn');
-        if (sendReportFromTimeReportsBtn) {
-            const btnText = sendReportFromTimeReportsBtn.querySelector('span');
-            if (btnText) btnText.textContent = lang.sendReportToOthers;
-        }
-
-        const reportFooterHelp = document.querySelector('.report-actions-footer .help-text');
-        if (reportFooterHelp) {
-            reportFooterHelp.innerHTML = `<i class="fas fa-info-circle"></i> ${lang.onlyRegisteredUsers}`;
-        }
-
-        const dashboardTitle = document.getElementById('dashboardTitle');
-        if (dashboardTitle) dashboardTitle.innerHTML = `<i class="fas fa-tachometer-alt"></i> ${lang.dashboardTitle}`;
-
-        setText('dashboardSummaryText', lang.dashboardWeeklySummary);
-
-        const submittedReportsTitle = document.getElementById('submittedReportsTitle');
-        if (submittedReportsTitle) submittedReportsTitle.innerHTML = `<i class="fas fa-check-circle"></i> ${lang.submittedReports}`;
-
-        setText('thEmployee', lang.employee);
-        setText('thCompletionRate', lang.completionRate);
-        setText('thOnTimeRate', lang.onTimeRate);
-        setText('thAvgTime', lang.avgTime);
-        setText('thDetails', lang.details);
-
-        // --- RE-RENDER CHART (If open) ---
-        if (timeReportsModal && timeReportsModal.classList.contains('active')) {
-            generateTimeReports();
-        }
-    }
 
     async function handlePasteLink() {
         try {
@@ -1925,47 +864,29 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function renderFilterOptions() {
         const currentFilterValue = filterSelect.value;
-        const lang = translations[currentLanguage];
-
-        // Xóa tất cả options hiện tại
         filterSelect.innerHTML = '';
 
-        // Thêm option "Tất cả ghi chú"
-        const allOption = document.createElement('option');
-        allOption.value = 'all';
-        allOption.textContent = lang.allNotesOption;
-        filterSelect.appendChild(allOption);
+        const options = [
+            { val: 'all', text: 'Tất cả công việc' },
+            { val: 'incomplete', text: 'Chưa hoàn thành' },
+            { val: 'completed', text: 'Đã hoàn thành' },
+            { val: 'overdue', text: 'Trễ giờ' },
+            { val: 'temporary', text: 'Công việc tạm thời' }
+        ];
 
-        // Thêm option "Chưa hoàn thành"
-        const incompleteOption = document.createElement('option');
-        incompleteOption.value = 'incomplete';
-        incompleteOption.textContent = lang.incompleteNotesOption;
-        filterSelect.appendChild(incompleteOption);
+        options.forEach(opt => {
+            const el = document.createElement('option');
+            el.value = opt.val;
+            el.textContent = opt.text;
+            filterSelect.appendChild(el);
+        });
 
-        // Thêm option "Đã hoàn thành"
-        const completedOption = document.createElement('option');
-        completedOption.value = 'completed';
-        completedOption.textContent = lang.completedNotesOption;
-        filterSelect.appendChild(completedOption);
-
-        // Thêm option "Trễ giờ"
-        const overdueOption = document.createElement('option');
-        overdueOption.value = 'overdue';
-        overdueOption.textContent = lang.overdueNotesOption;
-        filterSelect.appendChild(overdueOption);
-
-        const temporaryOption = document.createElement('option');
-        temporaryOption.value = 'temporary';
-        temporaryOption.textContent = lang.temporaryNotesOption;
-        filterSelect.appendChild(temporaryOption);
-
-        // Thêm separator (optional - để tách biệt các tag)
         const separator = document.createElement('option');
         separator.disabled = true;
         separator.textContent = '─────────────';
+        separator.setAttribute('data-no-translate', 'true'); // ✅ Không dịch separator
         filterSelect.appendChild(separator);
 
-        // Thêm các tag options
         tags.forEach(tag => {
             const option = document.createElement('option');
             option.value = tag.id;
@@ -1973,16 +894,18 @@ document.addEventListener("DOMContentLoaded", function () {
             filterSelect.appendChild(option);
         });
 
-        // Khôi phục giá trị đã chọn
-        filterSelect.value = currentFilterValue;
+        filterSelect.value = currentFilterValue || 'all';
+
+        // ✅ THÊM: Dịch các option vừa tạo
+        if (currentLanguage !== 'vi' && window.autoTranslate) {
+            setTimeout(() => translateAllSelects(), 50);
+        }
     }
 
     function renderCurrentTagsList() {
         currentTagsList.innerHTML = '';
-        const lang = translations[currentLanguage];
-
         if (tags.length === 0) {
-            currentTagsList.innerHTML = `<p>${lang.noTagsMessage}</p>`;
+            currentTagsList.innerHTML = `<p>Chưa có thẻ nào. Hãy thêm một thẻ mới!</p>`;
             return;
         }
 
@@ -1991,17 +914,16 @@ document.addEventListener("DOMContentLoaded", function () {
             tagItem.className = 'tag-item';
             const tagColor = tag.color || '#e0e0e0';
             const tagTextColor = getContrastYIQ(tagColor);
-            const tagName = getTagName(tag); // Sử dụng hàm getTagName
+            const tagName = getTagName(tag);
 
             tagItem.innerHTML = `
-            <span class="tag-label" style="background-color: ${tagColor}; color: ${tagTextColor}; --tag-custom-color: ${tagColor};">
-                ${tag.icon ? `<i class="${tag.icon}"></i>` : ''} ${tagName}
-            </span>
-            <div class="tag-actions">
-                <button class="edit-tag-btn" data-id="${tag.id}"><i class="fas fa-edit"></i></button>
-                <button class="delete-tag-btn" data-id="${tag.id}"><i class="fas fa-trash"></i></button>
-            </div>
-        `;
+        <span class="tag-label" style="background-color: ${tagColor}; color: ${tagTextColor}; --tag-custom-color: ${tagColor};">
+            ${tag.icon ? `<i class="${tag.icon}"></i>` : ''} ${tagName}
+        </span>
+        <div class="tag-actions">
+            <button class="edit-tag-btn" data-id="${tag.id}"><i class="fas fa-edit"></i></button>
+            <button class="delete-tag-btn" data-id="${tag.id}"><i class="fas fa-trash"></i></button>
+        </div>`;
             currentTagsList.appendChild(tagItem);
         });
 
@@ -2010,51 +932,23 @@ document.addEventListener("DOMContentLoaded", function () {
                 editingTagId = this.getAttribute('data-id');
                 const tagToEdit = tags.find(t => t.id === editingTagId);
                 if (tagToEdit) {
-                    // Xử lý tên thẻ có thể là object hoặc string
-                    if (typeof tagToEdit.name === 'object') {
-                        newTagNameInput.value = tagToEdit.name.vi || '';
-                        newTagNameEnInput.value = tagToEdit.name.en || '';
-                    } else {
-                        newTagNameInput.value = tagToEdit.name;
-                        newTagNameEnInput.value = '';
-                    }
+                    newTagNameInput.value = tagToEdit.name.vi || tagToEdit.name || '';
                     newTagIconInput.value = tagToEdit.icon || '';
                     newTagColorInput.value = tagToEdit.color || '#4f46e5';
-                    addOrUpdateTagBtn.innerHTML = translations[currentLanguage].updateTagBtn;
-
-                    // Hiển thị thông báo với tên thẻ
-                    const tagName = getTagName(tagToEdit);
-                    const message = translations[currentLanguage].toastEditingTag + tagName;
-                    showToast(message, 'info'); // Truyền message trực tiếp thay vì key
+                    addOrUpdateTagBtn.innerHTML = 'Cập nhật thẻ';
                 }
             });
         });
 
         document.querySelectorAll('.delete-tag-btn').forEach(btn => {
-            btn.addEventListener('click', async function () {
-                const tagIdToDelete = this.getAttribute('data-id');
-                const lang = translations[currentLanguage];
-                if (confirm(lang.confirmDeleteTag)) {
-                    try {
-                        const notesUsingThisTag = await db.collection('notes')
-                            .where('userId', '==', currentUser.uid) // Quan trọng: Phải có userId
-                            .where('tag', '==', tagIdToDelete)
-                            .get();
-                        const batch = db.batch();
-                        notesUsingThisTag.forEach(doc => {
-                            batch.update(doc.ref, { tag: null });
-                        });
-                        await batch.commit();
-
-                        await db.collection('tags').doc(tagIdToDelete).delete();
-                        showToast('toastTagDeleted', 'success');
-                    } catch (error) {
-                        showToast('toastErrorDeletingTag', 'error');
-                    }
-                }
+            btn.addEventListener('click', function () {
+                tagToDeleteId = this.getAttribute('data-id');
+                openConfirmModal('Bạn có chắc chắn muốn xóa thẻ này?', 'delete_tag');
             });
         });
+
     }
+
 
     // Hàm tính toán màu chữ tương phản dựa trên màu nền (giữ nguyên)
     function getContrastYIQ(hexcolor) {
@@ -2076,26 +970,27 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function getDayName(dayNumber) {
-        const lang = translations[currentLanguage];
-        const days = [
-            lang.sunday, lang.monday, lang.tuesday, lang.wednesday,
-            lang.thursday, lang.friday, lang.saturday
-        ];
+        const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
         return days[dayNumber];
     }
+
 
     function openManageTagsModal() {
         manageTagsModal.classList.add("active");
         document.body.style.overflow = "hidden";
         newTagNameInput.value = '';
-        newTagNameEnInput.value = '';
-
         newTagIconInput.value = '';
         newTagColorInput.value = '#4f46e5';
-        addOrUpdateTagBtn.innerHTML = translations[currentLanguage].addTagBtn;
+        addOrUpdateTagBtn.innerHTML = 'Thêm Thẻ';
         editingTagId = null;
         renderCurrentTagsList();
+
+        // Nếu có hàm dịch tự động thì gọi
+        if (typeof translateDynamicElement === 'function') {
+            translateDynamicElement(manageTagsModal);
+        }
     }
+
 
     function closeManageTagsModal() {
         manageTagsModal.classList.remove("active");
@@ -2104,7 +999,7 @@ document.addEventListener("DOMContentLoaded", function () {
         newTagNameEnInput.value = '';
         newTagIconInput.value = '';
         newTagColorInput.value = '#4f46e5';
-        addOrUpdateTagBtn.innerHTML = translations[currentLanguage].addTagBtn;
+        addOrUpdateTagBtn.innerHTML = 'Thêm Thẻ';
         editingTagId = null;
     }
 
@@ -2132,216 +1027,78 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function renderNotes(notesToRender = notes) {
         notesContainer.innerHTML = "";
-
-        if (tags.length === 0) {
-            return;
-        }
-
+        if (tags.length === 0) return;
         const sortedNotes = sortNotesByTime([...notesToRender]);
-
         sortedNotes.forEach((note) => {
             const noteTagObject = tags.find(t => t.id === note.tag);
-            const tagName = noteTagObject ? getTagName(noteTagObject) : translations[currentLanguage].undefinedTag;
+            const tagName = noteTagObject ? getTagName(noteTagObject) : 'Không xác định';
             const tagIcon = noteTagObject ? noteTagObject.icon : '';
             const tagColor = noteTagObject ? (noteTagObject.color || '#e0e0e0') : '#e0e0e0';
-            const tagTextColor = getContrastYIQ(tagColor); // Tính màu chữ tương phản
+            const tagTextColor = getContrastYIQ(tagColor);
             let progressHTML = '';
             if (note.subTasks && note.subTasks.length > 0) {
                 const progress = calculateProgress(note.subTasks);
-                let progressAttr = '';
-
-                if (progress === 0) {
-                    progressAttr = 'data-progress="0"';
-                } else if (progress === 100) {
-                    progressAttr = 'data-progress="complete"';
-                } else if (progress <= 33) {
-                    progressAttr = 'data-progress="low"';
-                } else if (progress <= 66) {
-                    progressAttr = 'data-progress="medium"';
-                } else {
-                    progressAttr = 'data-progress="high"';
-                }
-
-                progressHTML = `
-                <span class="note-progress" ${progressAttr}>
-                    <i class="fas fa-tasks"></i> ${progress}%
-                </span>
-            `;
+                let progressAttr = progress === 0 ? 'data-progress="0"' : progress === 100 ? 'data-progress="complete"' : progress <= 33 ? 'data-progress="low"' : progress <= 66 ? 'data-progress="medium"' : 'data-progress="high"';
+                progressHTML = `<span class="note-progress" ${progressAttr}><i class="fas fa-tasks"></i> ${progress}%</span>`;
             }
-
             const timeStatus = getNoteTimeStatus(note);
             const timeTooltip = getTimeStatusText(note, timeStatus);
             const overdueClass = timeStatus === 'overdue' ? 'overdue' : '';
             const noteElement = document.createElement("div");
             noteElement.className = `note-card fade-in ${note.completed ? 'completed' : ''}`;
-            if (note.isTemporaryTask) {
-                noteElement.setAttribute('data-temporary', 'true'); // ⬅️ MỚI
-            }
+            if (note.isTemporaryTask) noteElement.setAttribute('data-temporary', 'true');
             noteElement.innerHTML = `
-            <div class="note-content" data-id="${note.id}">
-                <div class="note-header">
-                    <h3 class="note-title">${note.title}</h3>
-                    <div class="note-actions">
-                            <button class="qr-btn" 
-                                data-id="${note.id}" 
-                                title="${translations[currentLanguage].generateQR || 'Tạo mã QR'}">
-                            <i class="fas fa-qrcode"></i>
-                        </button>
-                        ${!note.completed ? `
-                            <button class="complete-btn-header" 
-                                    data-id="${note.id}" 
-                                    title="${translations[currentLanguage].completeBtn || 'Hoàn thành'}">
-                                <i class="fas fa-check"></i>
-                            </button>
-                        ` : ''}
-
-                        <button class="edit-btn" 
-                                data-id="${note.id}"
-                                title="${translations[currentLanguage].editBtn || 'Sửa'}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="delete-btn" 
-                                data-id="${note.id}"
-                                title="${translations[currentLanguage].deleteBtn || 'Xóa'}">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-                <p class="note-text">${note.content}</p>
-                <div class="note-footer">
-                    <span class="note-tag" style="background-color: ${tagColor}; color: ${tagTextColor}; --tag-custom-color: ${tagColor};">
-                        ${tagIcon ? `<i class="${tagIcon}"></i>` : ''} ${tagName}
-                    </span>
-                    ${progressHTML}
-                    <span class="note-date ${overdueClass}" 
-                          data-status="${timeStatus}"
-                          data-tooltip="${timeTooltip}">
-                        ${note.time || '--:--'}
-                    </span>
+        <div class="note-content" data-id="${note.id}">
+            <div class="note-header">
+                <h3 class="note-title">${note.title}</h3>
+                <div class="note-actions">
+                    <button class="qr-btn" data-id="${note.id}" title="Tạo mã QR"><i class="fas fa-qrcode"></i></button>
+                    ${!note.completed ? `<button class="complete-btn-header" data-id="${note.id}" title="Hoàn thành"><i class="fas fa-check"></i></button>` : ''}
+                    <button class="edit-btn" data-id="${note.id}" title="Sửa"><i class="fas fa-edit"></i></button>
+                    <button class="delete-btn" data-id="${note.id}" title="Xóa"><i class="fas fa-trash"></i></button>
                 </div>
             </div>
-        `;
+            <p class="note-text">${note.content}</p>
+            <div class="note-footer">
+                <span class="note-tag" style="background-color: ${tagColor}; color: ${tagTextColor}; --tag-custom-color: ${tagColor};">${tagIcon ? `<i class="${tagIcon}"></i>` : ''} ${tagName}</span>
+                ${progressHTML}
+                <span class="note-date ${overdueClass}" data-status="${timeStatus}" data-tooltip="${timeTooltip}">${note.time || '--:--'}</span>
+            </div>
+        </div>`;
             notesContainer.appendChild(noteElement);
+            attachNoteEventListeners(noteElement, note.id);
         });
-
-        document.querySelectorAll(".delete-btn").forEach((btn) => {
-            btn.addEventListener("click", function (event) {
-                event.stopPropagation();
-                noteToDeleteId = this.getAttribute("data-id");
-
-                // Chỉ cần truyền actionType là 'delete'
-                openConfirmModal(null, 'delete');
-            });
-        });
-
-
-        document.querySelectorAll(".edit-btn").forEach((btn) => {
-            btn.addEventListener("click", function (event) {
-                event.stopPropagation();
-                editingNoteKey = this.getAttribute("data-id");
-                const noteToEdit = notes.find(n => n.id === editingNoteKey);
-                openAddNoteModal(noteToEdit);
-            });
-        });
-
-        document.querySelectorAll(".complete-btn-header").forEach((button) => {
-            button.addEventListener("click", async function (event) {
-                event.stopPropagation();
-                const noteId = this.getAttribute("data-id");
-                const note = notes.find(n => n.id === noteId);
-
-                if (note) {
-                    if (note.isTemporaryTask) {
-                        noteToDeleteId = noteId;
-                        elementToAnimate = this.closest('.note-card');
-
-                        // Chỉ cần truyền actionType là 'complete_temp'
-                        openConfirmModal(null, 'complete_temp');
-                        return;
-                    }
-
-                    // ⬅️ LOGIC CŨ: Nếu KHÔNG PHẢI temporary task → Hoàn thành bình thường
-                    const now = new Date();
-                    const endTime = now.toISOString();
-                    let actualDuration = null;
-
-                    if (note.startTime) {
-                        const start = new Date(note.startTime);
-                        const end = new Date(endTime);
-                        actualDuration = Math.round((end - start) / 60000);
-                    } else {
-                        const [hours, minutes] = note.time.split(':');
-                        const scheduledTime = new Date();
-                        scheduledTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-
-                        const diff = Math.round((now - scheduledTime) / 60000);
-                        actualDuration = diff > 0 ? diff : 0;
-                    }
-
-                    try {
-                        await db.collection('notes').doc(noteId).update({
-                            completed: true,
-                            endTime: endTime,
-                            actualDuration: actualDuration,
-                            isOnTime: note.expectedDuration ? actualDuration <= note.expectedDuration : null
-                        });
-                        showToast('toastNoteCompleted', 'success');
-                    } catch (error) {
-                        showToast('toastErrorCompletingNote', 'error');
-                    }
-                }
-            });
-        });
-
-
-        document.querySelectorAll(".qr-btn").forEach((btn) => {
-            btn.addEventListener("click", function (event) {
-                event.stopPropagation();
-                const noteId = this.getAttribute("data-id");
-                openQRGeneratorModal(noteId);
-            });
-        });
-
-        document.querySelectorAll(".note-content").forEach((noteContentDiv) => {
-            if (!noteContentDiv.dataset.hasClickListener) {
-                noteContentDiv.addEventListener("click", function (event) {
-                    if (event.target.closest('.edit-btn') || event.target.closest('.delete-btn') || event.target.closest('.complete-btn')) {
-                        return;
-                    }
-                    const noteId = this.getAttribute("data-id");
-                    const noteToView = notes.find(n => n.id === noteId);
-                    openViewNoteModal(noteToView);
-                });
-                noteContentDiv.dataset.hasClickListener = true;
-            }
-        });
-
     }
 
     function addSubTaskInput(taskData = null) {
         const container = document.getElementById('subTasksContainer');
+
+        // ✅ FIX: Kiểm tra container tồn tại
+        if (!container) {
+            console.error('subTasksContainer not found');
+            return;
+        }
+
         const taskId = taskData?.id || Date.now().toString();
-        const lang = translations[currentLanguage];
 
         const taskItem = document.createElement('div');
         taskItem.className = 'sub-task-item';
         taskItem.dataset.taskId = taskId;
         taskItem.dataset.completed = taskData?.completed || 'false';
 
-        // **MỚI: HTML đơn giản hơn - không có checkbox và copy button**
         taskItem.innerHTML = `
         <div class="sub-task-content">
             <input type="text" 
                    class="sub-task-text-input" 
-                   placeholder="${lang.subTaskPlaceholder}" 
+                   placeholder="Mô tả công việc..." 
                    value="${taskData?.text || ''}">
             <input type="url" 
                    class="sub-task-link-input" 
-                   placeholder="${lang.subTaskLinkPlaceholder}" 
+                   placeholder="Đường dẫn (tùy chọn)" 
                    value="${taskData?.link || ''}">
         </div>
         <div class="sub-task-actions">
-            <button type="button" class="sub-task-btn remove-sub-task-btn" title="${lang.deleteBtnConfirm}">
+            <button type="button" class="sub-task-btn remove-sub-task-btn" title="Xóa">
                 <i class="fas fa-trash"></i>
             </button>
         </div>
@@ -2349,21 +1106,32 @@ document.addEventListener("DOMContentLoaded", function () {
 
         container.appendChild(taskItem);
 
-        // **Event listener chỉ còn nút xóa**
+        // Event listener cho nút xóa
         const removeBtn = taskItem.querySelector('.remove-sub-task-btn');
-        removeBtn.addEventListener('click', () => {
-            const totalSubTasks = container.querySelectorAll('.sub-task-item').length;
-            if (totalSubTasks > 1) {
-                taskItem.remove();
-            } else {
-                showToast(lang.minOneSubTask, 'warning');
-            }
-        });
+        if (removeBtn) {
+            removeBtn.addEventListener('click', () => {
+                const totalSubTasks = container.querySelectorAll('.sub-task-item').length;
+                if (totalSubTasks > 1) {
+                    taskItem.remove();
+                } else {
+                    showToast('Cần ít nhất 1 công việc', 'warning');
+                }
+            });
+        }
 
-        // **Auto focus vào input text của sub-task mới thêm**
-        const textInput = taskItem.querySelector('.sub-task-text-input');
+        // Auto focus
         if (!taskData) {
-            setTimeout(() => textInput.focus(), 100);
+            const textInput = taskItem.querySelector('.sub-task-text-input');
+            if (textInput) {
+                setTimeout(() => textInput.focus(), 100);
+            }
+        }
+
+        // Dịch nếu cần
+        if (currentLanguage !== 'vi' && window.autoTranslate) {
+            setTimeout(() => {
+                window.autoTranslate.translateNew(taskItem, currentLanguage);
+            }, 50);
         }
     }
 
@@ -2401,153 +1169,53 @@ document.addEventListener("DOMContentLoaded", function () {
         const list = document.getElementById('viewSubTasksList');
         const progressFill = document.getElementById('viewProgressFill');
         const progressText = document.getElementById('viewProgressText');
-        const lang = translations[currentLanguage];
-
-        if (!note.subTasks || note.subTasks.length === 0) {
-            group.style.display = 'none';
-            return;
-        }
-
+        if (!note.subTasks || note.subTasks.length === 0) { group.style.display = 'none'; return; }
         group.style.display = 'block';
         list.innerHTML = '';
-
         const progress = calculateProgress(note.subTasks);
         progressFill.style.width = `${progress}%`;
-
-        // ⬅️ THAY ĐỔI: Hiển thị % TRONG thanh progress
         progressFill.textContent = `${progress}%`;
-
-        // ⬅️ Ẩn progressText (hoặc xóa hẳn element trong HTML)
-        if (progressText) {
-            progressText.style.display = 'none';
-        }
-
-        // ⬅️ Thêm data attribute để CSS áp dụng màu
-        if (progress === 0) {
-            progressFill.setAttribute('data-progress', '0');
-        } else if (progress <= 33) {
-            progressFill.setAttribute('data-progress', 'low');
-        } else if (progress <= 66) {
-            progressFill.setAttribute('data-progress', 'medium');
-        } else if (progress < 100) {
-            progressFill.setAttribute('data-progress', 'high');
-        } else {
-            progressFill.setAttribute('data-progress', 'complete');
-        }
-
-        // ⬅️ Phần render danh sách sub-tasks (GIỮ NGUYÊN)
+        if (progressText) progressText.style.display = 'none';
+        progressFill.setAttribute('data-progress', progress === 0 ? '0' : progress <= 33 ? 'low' : progress <= 66 ? 'medium' : progress < 100 ? 'high' : 'complete');
         note.subTasks.forEach(task => {
             const item = document.createElement('div');
             item.className = `view-sub-task-item ${task.completed ? 'completed' : ''}`;
-
             item.innerHTML = `
-            <input type="checkbox" 
-                   class="view-sub-task-checkbox" 
-                   data-task-id="${task.id}"
-                   data-note-id="${note.id}"
-                   ${task.completed ? 'checked' : ''}
-                   ${note.completed ? 'disabled' : ''}>
-            <span class="view-sub-task-text">${task.text}</span>
-            ${task.link ? `
-                <div class="view-sub-task-link">
-                    <button class="copy-link-btn" data-link="${task.link}">
-                        <i class="fas fa-copy"></i> ${lang.copyLink}
-                    </button>
-                </div>
-            ` : ''}
-        `;
-
+        <input type="checkbox" class="view-sub-task-checkbox" data-task-id="${task.id}" data-note-id="${note.id}" ${task.completed ? 'checked' : ''} ${note.completed ? 'disabled' : ''}>
+        <span class="view-sub-task-text">${task.text}</span>
+        ${task.link ? `<div class="view-sub-task-link"><button class="copy-link-btn" data-link="${task.link}"><i class="fas fa-copy"></i> Copy</button></div>` : ''}`;
             list.appendChild(item);
-
-            const checkbox = item.querySelector('.view-sub-task-checkbox');
-            checkbox.addEventListener('change', async (e) => {
-                if (note.completed) {
-                    e.preventDefault();
-                    e.target.checked = task.completed;
-                    showToast('Note đã hoàn thành — không thể chỉnh sửa sub-task!', 'warning');
-                    return;
-                }
-
-                const noteId = e.target.dataset.noteId;
-                const taskId = e.target.dataset.taskId;
-                const completed = e.target.checked;
-
-                await updateSubTaskStatus(noteId, taskId, completed);
+            item.querySelector('.view-sub-task-checkbox').addEventListener('change', async (e) => {
+                if (note.completed) { e.preventDefault(); e.target.checked = task.completed; showToast('Note đã hoàn thành, không thể sửa!', 'warning'); return; }
+                await updateSubTaskStatus(note.id, task.id, e.target.checked);
             });
-
             if (task.link) {
-                const copyBtn = item.querySelector('.copy-link-btn');
-                copyBtn.addEventListener('click', () => {
-                    navigator.clipboard.writeText(task.link)
-                        .then(() => showToast(lang.linkCopied, 'success'))
-                        .catch(() => showToast(lang.linkCopyFailed, 'error'));
+                item.querySelector('.copy-link-btn').addEventListener('click', () => {
+                    navigator.clipboard.writeText(task.link).then(() => showToast('Đã copy link!', 'success')).catch(() => showToast('Lỗi copy!', 'error'));
                 });
             }
         });
+        translateDynamicElement(group);
     }
 
     async function updateSubTaskStatus(noteId, taskId, completed) {
-        const lang = translations[currentLanguage];
-
         try {
             const noteRef = db.collection('notes').doc(noteId);
             const noteDoc = await noteRef.get();
-            const noteData = noteDoc.data();
-
-            // ⬅️ Cập nhật trạng thái completed của sub-task
-            const updatedSubTasks = noteData.subTasks.map(task =>
-                task.id === taskId ? { ...task, completed } : task
-            );
-
+            const updatedSubTasks = noteDoc.data().subTasks.map(task => task.id === taskId ? { ...task, completed } : task);
             await noteRef.update({ subTasks: updatedSubTasks });
-
-            // ⬅️ Tính toán lại tiến độ
             const progress = calculateProgress(updatedSubTasks);
             const progressFill = document.getElementById('viewProgressFill');
-            const progressText = document.getElementById('viewProgressText');
-
-            // ⬅️ CẬP NHẬT WIDTH VÀ % TEXT TRONG THANH
             if (progressFill) {
                 progressFill.style.width = `${progress}%`;
-                progressFill.textContent = `${progress}%`; // ⬅️ QUAN TRỌNG: Cập nhật text
+                progressFill.textContent = `${progress}%`;
+                progressFill.setAttribute('data-progress', progress === 0 ? '0' : progress <= 33 ? 'low' : progress <= 66 ? 'medium' : progress < 100 ? 'high' : 'complete');
             }
-
-            // ⬅️ Ẩn progressText nếu tồn tại (vì % đã nằm trong thanh)
-            if (progressText) {
-                progressText.style.display = 'none';
-            }
-
-            // ⬅️ CẬP NHẬT MÀU SẮC THEO TIẾN ĐỘ
-            if (progressFill) {
-                if (progress === 0) {
-                    progressFill.setAttribute('data-progress', '0');
-                } else if (progress <= 33) {
-                    progressFill.setAttribute('data-progress', 'low');
-                } else if (progress <= 66) {
-                    progressFill.setAttribute('data-progress', 'medium');
-                } else if (progress < 100) {
-                    progressFill.setAttribute('data-progress', 'high');
-                } else {
-                    progressFill.setAttribute('data-progress', 'complete');
-                }
-            }
-
-            // ⬅️ Cập nhật class cho sub-task item (gạch ngang + nền xanh khi completed)
             const checkbox = document.querySelector(`[data-task-id="${taskId}"][data-note-id="${noteId}"]`);
-            if (checkbox) {
-                const subTaskItem = checkbox.closest('.view-sub-task-item');
-                if (subTaskItem) {
-                    if (completed) {
-                        subTaskItem.classList.add('completed');
-                    } else {
-                        subTaskItem.classList.remove('completed');
-                    }
-                }
-            }
-
-            showToast(lang.subTaskUpdated, 'success');
+            if (checkbox) checkbox.closest('.view-sub-task-item')?.classList.toggle('completed', completed);
+            showToast('Đã cập nhật trạng thái!', 'success');
         } catch (error) {
-            showToast(lang.subTaskUpdateError, 'error');
+            showToast('Lỗi khi cập nhật!', 'error');
         }
     }
 
@@ -2564,21 +1232,42 @@ document.addEventListener("DOMContentLoaded", function () {
         noteForm.reset();
 
         const subTasksContainer = document.getElementById('subTasksContainer');
-        subTasksContainer.innerHTML = '';
+        if (subTasksContainer) {
+            subTasksContainer.innerHTML = '';
+        }
 
-        const lang = translations[currentLanguage];
+        const dayCheckboxes = document.querySelectorAll('input[name="dayOfWeek"]');
+        if (dayCheckboxes && dayCheckboxes.length > 0) {
+            dayCheckboxes.forEach(cb => {
+                if (cb) cb.checked = false;
+            });
+        }
 
         if (note) {
-            // Chế độ Sửa
-            modalTitle.textContent = lang.editNoteModalTitle;
-            submitNoteBtn.textContent = lang.updateNoteBtn;
+            // ✅ FIX: Dùng setDynamicText để ép bộ dịch dịch lại
+            setDynamicText(modalTitle, 'Sửa công việc');
+            setDynamicText(submitNoteBtn, 'Cập nhật');
 
-            document.getElementById("noteTitle").value = note.title;
-            document.getElementById("noteContent").value = note.content;
-            document.getElementById("noteTime").value = note.time;
-            noteDayOfWeekSelect.value = note.dayOfWeek || new Date().getDay();
-            document.getElementById("expectedDuration").value = note.expectedDuration || 30;
-            document.getElementById("isTemporaryTask").checked = note.isTemporaryTask || false; // ⬅️ MỚI
+            document.getElementById("noteTitle").value = note.title || '';
+            document.getElementById("noteContent").value = note.content || '';
+            document.getElementById("noteTime").value = note.time || '';
+
+            if (dayCheckboxes && dayCheckboxes.length > 0) {
+                const dayCheckbox = document.querySelector(`input[name="dayOfWeek"][value="${note.dayOfWeek}"]`);
+                if (dayCheckbox) {
+                    dayCheckbox.checked = true;
+                }
+            }
+
+            const expectedDurationInput = document.getElementById("expectedDuration");
+            if (expectedDurationInput) {
+                expectedDurationInput.value = note.expectedDuration || 30;
+            }
+
+            const isTempCheckbox = document.getElementById("isTemporaryTask");
+            if (isTempCheckbox) {
+                isTempCheckbox.checked = note ? (note.isTemporaryTask || false) : false;
+            }
 
             if (note.subTasks && note.subTasks.length > 0) {
                 note.subTasks.forEach(task => addSubTaskInput(task));
@@ -2588,14 +1277,25 @@ document.addEventListener("DOMContentLoaded", function () {
 
             renderTagOptions(note.tag);
             editingNoteKey = note.id;
-        } else {
-            // Chế độ Thêm mới
-            modalTitle.textContent = lang.newNoteModalTitle;
-            submitNoteBtn.textContent = lang.saveNoteBtn;
 
+        } else {
+            // ✅ FIX: Dùng setDynamicText để ép bộ dịch dịch lại
+            setDynamicText(modalTitle, 'Công việc mới');
+            setDynamicText(submitNoteBtn, 'Lưu công việc');
             setDefaultTime();
-            noteDayOfWeekSelect.value = new Date().getDay();
-            document.getElementById("isTemporaryTask").checked = false; // ⬅️ MỚI: Reset checkbox
+
+            if (dayCheckboxes && dayCheckboxes.length > 0) {
+                const today = new Date().getDay();
+                const todayCheckbox = document.querySelector(`input[name="dayOfWeek"][value="${today}"]`);
+                if (todayCheckbox) {
+                    todayCheckbox.checked = true;
+                }
+            }
+
+            const isTempCheckbox = document.getElementById("isTemporaryTask");
+            if (isTempCheckbox) {
+                isTempCheckbox.checked = false;
+            }
 
             addSubTaskInput();
             renderTagOptions();
@@ -2603,9 +1303,16 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         setTimeout(() => {
-            document.getElementById("noteTitle").focus();
+            const titleInput = document.getElementById("noteTitle");
+            if (titleInput) titleInput.focus();
         }, 200);
+
+        if (currentLanguage !== 'vi' && window.autoTranslate) {
+            window.autoTranslate.translateNew(addNoteModal, currentLanguage);
+        }
+
     }
+
 
 
     function closeAddNoteModal() {
@@ -2785,7 +1492,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // Display note info
         const noteTag = tags.find(t => t.id === note.tag);
-        const tagName = noteTag ? getTagName(noteTag) : translations[currentLanguage].undefinedTag;
+        const tagName = noteTag ? getTagName(noteTag) : 'Không xác định';
 
         document.getElementById("qrNoteTitle").textContent = note.title;
         document.getElementById("qrNoteContent").textContent = note.content;
@@ -2874,26 +1581,24 @@ document.addEventListener("DOMContentLoaded", function () {
     function addQRSubTaskInput(taskData = null) {
         const container = document.getElementById('qrSubTasksContainer');
         const taskId = taskData?.id || Date.now().toString();
-        const lang = translations[currentLanguage];
 
         const taskItem = document.createElement('div');
         taskItem.className = 'sub-task-item';
         taskItem.dataset.taskId = taskId;
         taskItem.dataset.completed = taskData?.completed || 'false';
 
+        // ✅ THAY ĐỔI: Dùng text trực tiếp
         taskItem.innerHTML = `
         <div class="sub-task-content">
-            <input type="text" 
-                   class="sub-task-text-input" 
-                   placeholder="${lang.subTaskPlaceholder}" 
+            <input type="text" class="sub-task-text-input" 
+                   placeholder="Mô tả công việc..." 
                    value="${taskData?.text || ''}">
-            <input type="url" 
-                   class="sub-task-link-input" 
-                   placeholder="${lang.subTaskLinkPlaceholder}" 
+            <input type="url" class="sub-task-link-input" 
+                   placeholder="Đường dẫn (tùy chọn)" 
                    value="${taskData?.link || ''}">
         </div>
         <div class="sub-task-actions">
-            <button type="button" class="sub-task-btn remove-qr-sub-task-btn" title="${lang.deleteBtnConfirm}">
+            <button type="button" class="sub-task-btn remove-qr-sub-task-btn" title="Xóa">
                 <i class="fas fa-trash"></i>
             </button>
         </div>
@@ -2901,21 +1606,26 @@ document.addEventListener("DOMContentLoaded", function () {
 
         container.appendChild(taskItem);
 
-        const removeBtn = taskItem.querySelector('.remove-qr-sub-task-btn');
-        removeBtn.addEventListener('click', () => {
-            const totalSubTasks = container.querySelectorAll('.sub-task-item').length;
-            if (totalSubTasks > 1) {
+        taskItem.querySelector('.remove-qr-sub-task-btn').addEventListener('click', () => {
+            if (container.querySelectorAll('.sub-task-item').length > 1) {
                 taskItem.remove();
             } else {
-                showToast(lang.minOneSubTask, 'warning');
+                showToast('Cần ít nhất 1 công việc', 'warning');
             }
         });
 
-        const textInput = taskItem.querySelector('.sub-task-text-input');
         if (!taskData) {
-            setTimeout(() => textInput.focus(), 100);
+            setTimeout(() => taskItem.querySelector('.sub-task-text-input').focus(), 100);
+        }
+
+        // ✅ THÊM: Dịch tự động
+        if (currentLanguage !== 'vi' && window.autoTranslate) {
+            setTimeout(() => {
+                window.autoTranslate.translateNew(taskItem, currentLanguage);
+            }, 50);
         }
     }
+
 
     // Hàm lấy sub-tasks từ QR form
     function getQRSubTasksFromForm() {
@@ -3014,65 +1724,29 @@ document.addEventListener("DOMContentLoaded", function () {
         return 'future';
     }
 
-    // Hàm lấy text tooltip theo trạng thái
-    function getTimeStatusText(note, status) {
-        const lang = translations[currentLanguage];
-
-        if (status === 'completed') {
-            return lang.timeStatusCompleted || 'Đã hoàn thành';
-        }
-
-        const [noteHour, noteMinute] = note.time.split(':').map(Number);
+        function getTimeStatusText(note, status) {
+        if (status === 'completed') return 'Đã hoàn thành';
         const now = new Date();
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
-        const currentTotalMinutes = currentHour * 60 + currentMinute;
-        const noteTotalMinutes = noteHour * 60 + noteMinute;
-        const diffMinutes = noteTotalMinutes - currentTotalMinutes;
+        const [noteHour, noteMinute] = note.time.split(':').map(Number);
+        const diffMinutes = (noteHour * 60 + noteMinute) - (now.getHours() * 60 + now.getMinutes());
+
+        const m = Math.abs(diffMinutes);
+        const hours = Math.floor(m / 60);
+        const mins = m % 60;
 
         if (status === 'overdue') {
-            const overdueMinutes = Math.abs(diffMinutes);
-            const hours = Math.floor(overdueMinutes / 60);
-            const minutes = overdueMinutes % 60;
-
-            if (hours > 0) {
-                return (lang.timeStatusOverdueHours || 'Trễ {hours} giờ {minutes} phút')
-                    .replace('{hours}', hours)
-                    .replace('{minutes}', minutes);
-            } else {
-                return (lang.timeStatusOverdueMinutes || 'Trễ {minutes} phút')
-                    .replace('{minutes}', minutes);
-            }
+            return m >= 60 ? `Trễ hạn: ${hours}h ${mins}m` : `Trễ hạn: ${m}m`;
         }
-
         if (status === 'upcoming') {
-            if (diffMinutes <= 5) {
-                return lang.timeStatusNow || 'Sắp đến giờ (trong 5 phút)';
-            } else if (diffMinutes <= 15) {
-                return (lang.timeStatusSoon || 'Sắp đến ({minutes} phút nữa)')
-                    .replace('{minutes}', diffMinutes);
-            } else {
-                return (lang.timeStatusUpcoming || 'Sắp đến ({minutes} phút nữa)')
-                    .replace('{minutes}', diffMinutes);
-            }
+            return diffMinutes <= 5 ? 'Sắp đến giờ' : `Sắp đến: ${diffMinutes}m`;
         }
-
         if (status === 'future') {
-            const hours = Math.floor(diffMinutes / 60);
-            const minutes = diffMinutes % 60;
-
-            if (hours > 0) {
-                return (lang.timeStatusFutureHours || 'Còn {hours} giờ {minutes} phút')
-                    .replace('{hours}', hours)
-                    .replace('{minutes}', minutes);
-            } else {
-                return (lang.timeStatusFutureMinutes || 'Còn {minutes} phút')
-                    .replace('{minutes}', minutes);
-            }
+            return diffMinutes >= 60 ? `Còn lại: ${hours}h ${mins}m` : `Còn lại: ${diffMinutes}m`;
         }
-
         return '';
     }
+
+
 
     function openAddFromQRModal(noteData) {
         addFromQRModal.classList.add("active");
@@ -3187,20 +1861,26 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    function updateAllTimeTooltips() {
-        document.querySelectorAll('.note-date').forEach(dateElement => {
+        // ✅ FIX: Thêm async để gọi dịch thuật
+    async function updateAllTimeTooltips() {
+        const dateElements = document.querySelectorAll('.note-date');
+        
+        for (const dateElement of dateElements) {
             const noteId = dateElement.closest('.note-content').getAttribute('data-id');
             const note = notes.find(n => n.id === noteId);
 
             if (note) {
                 const timeStatus = getNoteTimeStatus(note);
-                const timeTooltip = getTimeStatusText(note, timeStatus);
+                let timeTooltip = getTimeStatusText(note, timeStatus);
+
+                // ✅ FIX: Dịch Tooltip ngay lập tức trước khi gán vào data-tooltip
+                if (currentLanguage !== 'vi' && window.autoTranslate) {
+                    timeTooltip = await window.autoTranslate.translateText(timeTooltip, currentLanguage);
+                }
 
                 dateElement.setAttribute('data-status', timeStatus);
-
-                // SỬA Ở ĐÂY: Dùng data-tooltip thay vì title
                 dateElement.setAttribute('data-tooltip', timeTooltip);
-                dateElement.removeAttribute('title'); // Xóa title cũ nếu có
+                dateElement.removeAttribute('title');
 
                 if (timeStatus === 'overdue') {
                     dateElement.classList.add('overdue');
@@ -3208,8 +1888,9 @@ document.addEventListener("DOMContentLoaded", function () {
                     dateElement.classList.remove('overdue');
                 }
             }
-        });
+        }
     }
+
 
     // Cập nhật mỗi 30 giây
     setInterval(updateAllTimeTooltips, 30000);
@@ -3219,57 +1900,40 @@ document.addEventListener("DOMContentLoaded", function () {
         document.body.style.overflow = "hidden";
         viewNoteTitle.textContent = note.title;
         viewNoteContent.textContent = note.content;
-        const dayName = getDayName(note.dayOfWeek || 0);
-        // Hiển thị theo định dạng: "11:00 Thứ Năm" hoặc "11:00 Thursday"
-        viewNoteTime.textContent = `${note.time} ${dayName}`;
-
+        viewNoteTime.textContent = `${note.time} ${getDayName(note.dayOfWeek || 0)}`;
         viewNoteTime.classList.remove('overdue', 'completed-time');
-
-        if (note.completed) {
-            viewNoteTime.classList.add('completed-time');
-        } else if (isNoteOverdue(note)) {
-            viewNoteTime.classList.add('overdue');
-        }
+        if (note.completed) viewNoteTime.classList.add('completed-time');
+        else if (isNoteOverdue(note)) viewNoteTime.classList.add('overdue');
 
         const viewNoteTagObject = tags.find(t => t.id === note.tag);
-        const viewTagName = viewNoteTagObject ? getTagName(viewNoteTagObject) : translations[currentLanguage].undefinedTag;
+        const viewTagName = viewNoteTagObject ? getTagName(viewNoteTagObject) : 'Không xác định';
         const viewTagIcon = viewNoteTagObject ? viewNoteTagObject.icon : '';
         const viewTagColor = viewNoteTagObject ? (viewNoteTagObject.color || '#e0e0e0') : '#e0e0e0';
-        const viewTagTextColor = getContrastYIQ(viewTagColor);
 
         viewNoteTag.className = `view-content note-tag`;
         viewNoteTag.style.backgroundColor = viewTagColor;
-        viewNoteTag.style.color = viewTagTextColor;
+        viewNoteTag.style.color = getContrastYIQ(viewTagColor);
         viewNoteTag.style.setProperty('--tag-custom-color', viewTagColor);
         viewNoteTag.innerHTML = `${viewTagIcon ? `<i class="${viewTagIcon}"></i>` : ''} ${viewTagName}`;
-
-        const lang = translations[currentLanguage];
-        viewNoteStatus.textContent = note.completed ? lang.completedStatus : lang.incompleteStatus;
+        viewNoteStatus.textContent = note.completed ? 'Đã hoàn thành' : 'Chưa hoàn thành';
         viewNoteStatus.style.color = note.completed ? "#10b981" : "#ef4444";
-
         viewNoteActions.innerHTML = '';
+
         if (note.completed) {
             const uncompleteBtn = document.createElement('button');
             uncompleteBtn.className = 'uncomplete-btn';
-            uncompleteBtn.textContent = lang.uncompleteBtn;
+            uncompleteBtn.textContent = 'Đánh dấu chưa hoàn thành';
             uncompleteBtn.setAttribute('data-id', note.id);
-
             uncompleteBtn.addEventListener('click', function () {
-                const noteId = this.getAttribute('data-id');
-                db.collection('notes').doc(noteId).update({ completed: false })
-                    .then(() => {
-                        closeViewNoteModal();
-                        showToast('toastNoteReset', 'info');
-                    })
-                    .catch((error) => {
-                        showToast('toastErrorResettingNote', 'error');
-                    });
+                db.collection('notes').doc(this.getAttribute('data-id')).update({ completed: false })
+                    .then(() => { closeViewNoteModal(); showToast('Công việc đã được đặt lại!', 'info'); })
+                    .catch(() => showToast('Lỗi khi đặt lại công việc.', 'error'));
             });
             viewNoteActions.appendChild(uncompleteBtn);
         }
         renderViewSubTasks(note);
+        translateDynamicElement(viewNoteModal);
     }
-
 
     function closeViewNoteModal() {
         viewNoteModal.classList.remove("active");
@@ -3278,32 +1942,40 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function openConfirmModal(message, actionType) {
-        const lang = translations[currentLanguage]; // Lấy ngôn ngữ hiện tại
+        currentConfirmAction = actionType;
+
         const confirmText = document.querySelector('.confirmation-text');
+        const cancelBtn = document.getElementById('cancelDeleteBtn');
+        const confirmBtn = document.getElementById('confirmDeleteBtn');
 
-        currentConfirmAction = actionType; // Lưu lại hành động trước
-
-        // Gán text dựa theo hành động
-        if (confirmText) {
-            if (currentConfirmAction === 'complete_temp') {
-                confirmText.textContent = lang.confirmDeleteTemporary;
-            } else {
-                confirmText.textContent = lang.confirmDeleteText;
-            }
-        }
+        // ✅ FIX: Dùng setDynamicText để ép bộ dịch dịch lại khi mở popup
+        setDynamicText(confirmText, message);
+        setDynamicText(cancelBtn, 'Hủy');
+        setDynamicText(confirmBtn, 'Xóa');
 
         confirmModal.classList.add("active");
         document.body.style.overflow = "hidden";
+
+                if (currentLanguage !== 'vi' && window.autoTranslate) {
+            setTimeout(() => {
+                window.autoTranslate.translateNew(confirmModal, currentLanguage);
+            }, 50);
+        }
+
     }
+
 
 
     function closeConfirmModal() {
         confirmModal.classList.remove("active");
         document.body.style.overflow = "auto";
         noteToDeleteId = null;
+        tagToDeleteId = null;           // ✅ FIX: Xóa ID tag sau khi đóng
+        clearCacheRequested = false;    // ✅ FIX: Reset trạng thái cache
         currentConfirmAction = null;
         elementToAnimate = null;
     }
+
 
 
     timeReportsBtn.addEventListener("click", openTimeReportsModal);
@@ -3328,184 +2000,141 @@ document.addEventListener("DOMContentLoaded", function () {
         document.body.style.overflow = "auto";
     }
 
-    function generateTimeReports() {
-        const lang = translations[currentLanguage];
+        async function generateTimeReports() {
         const period = document.getElementById('timeReportPeriod').value;
-
-        // ✅ Lấy khoảng thời gian dựa trên filter
         const { startDate, endDate, periodLabel } = getReportDateRange(period);
+        const filteredNotes = notes.filter(note => note.completed && note.endTime && new Date(note.endTime) >= startDate && new Date(note.endTime) <= endDate);
 
-        // Lọc notes theo thời gian
-        const filteredNotes = notes.filter(note => {
-            if (!note.completed || !note.endTime) return false;
-            const endDate_note = new Date(note.endTime);
-            return endDate_note >= startDate && endDate_note <= endDate;
-        });
+        // ==========================================
+        // ✅ FIX: Dịch các từ khóa tĩnh trước khi ghép với số
+        // ==========================================
+        let tPhut = 'phút', tTietKiem = 'Tiết kiệm:', tVuot = 'Vượt:', tDuKien = 'Dự kiến:', tThucTe = 'Thực tế:';
+        let tLich = 'Lịch:', tXong = 'Xong:', tTienDo = 'Tiến độ:', tChuaCoDuLieu = 'Chưa có dữ liệu báo cáo';
 
-        // Tính toán statistics (giống cũ)
-        const totalTasks = filteredNotes.length;
-        const onTimeTasks = filteredNotes.filter(n => n.isOnTime === true).length;
-        const lateTasks = filteredNotes.filter(n => n.isOnTime === false).length;
+        if (currentLanguage !== 'vi' && window.autoTranslate) {
+            [tPhut, tTietKiem, tVuot, tDuKien, tThucTe, tLich, tXong, tTienDo, tChuaCoDuLieu] = await Promise.all([
+                window.autoTranslate.translateText(tPhut, currentLanguage),
+                window.autoTranslate.translateText(tTietKiem, currentLanguage),
+                window.autoTranslate.translateText(tVuot, currentLanguage),
+                window.autoTranslate.translateText(tDuKien, currentLanguage),
+                window.autoTranslate.translateText(tThucTe, currentLanguage),
+                window.autoTranslate.translateText(tLich, currentLanguage),
+                window.autoTranslate.translateText(tXong, currentLanguage),
+                window.autoTranslate.translateText(tTienDo, currentLanguage),
+                window.autoTranslate.translateText(tChuaCoDuLieu, currentLanguage)
+            ]);
+        }
+
+        document.getElementById('totalTasksCount').textContent = filteredNotes.length;
+        document.getElementById('onTimeTasksCount').textContent = filteredNotes.filter(n => n.isOnTime === true).length;
+        document.getElementById('lateTasksCount').textContent = filteredNotes.filter(n => n.isOnTime === false).length;
+        
         const notesWithDuration = filteredNotes.filter(n => n.actualDuration && n.actualDuration > 0);
-        const avgTime = notesWithDuration.length > 0
-            ? Math.round(notesWithDuration.reduce((sum, n) => sum + n.actualDuration, 0) / notesWithDuration.length)
-            : 0;
+        const avgVal = notesWithDuration.length > 0 ? Math.round(notesWithDuration.reduce((sum, n) => sum + n.actualDuration, 0) / notesWithDuration.length) : 0;
+        
+        // ✅ FIX: Ghép chữ "phút" đã dịch
+        document.getElementById('avgTimeValue').textContent = `${avgVal} ${tPhut}`; 
+        
+        setDynamicText(document.getElementById('timeReportsModalTitle'), `Báo cáo thời gian - ${periodLabel}`);
 
-        // Update summary cards
-        document.getElementById('totalTasksCount').textContent = totalTasks;
-        document.getElementById('onTimeTasksCount').textContent = onTimeTasks;
-        document.getElementById('lateTasksCount').textContent = lateTasks;
-        document.getElementById('avgTimeValue').textContent = `${avgTime} ${lang.timeUnit}`;
-
-        // ✅ Cập nhật tiêu đề với khoảng thời gian
-        document.getElementById('timeReportsModalTitle').textContent =
-            `${lang.timeReportsModalTitle || 'Báo cáo thời gian'} - ${periodLabel}`;
-
-        // Render detailed list
         const timeReportsList = document.getElementById('timeReportsList');
         timeReportsList.innerHTML = '';
-
+        
         if (filteredNotes.length === 0) {
-            timeReportsList.innerHTML = `<p style="text-align: center; color: #6b7280;">${lang.noTimeReports}</p>`;
+            timeReportsList.innerHTML = `<p style="text-align: center; color: #6b7280;">${tChuaCoDuLieu}</p>`;
         } else {
             filteredNotes.forEach(note => {
                 const item = document.createElement('div');
                 item.className = `time-report-item ${note.isOnTime ? 'on-time' : 'late'}`;
-
+                
                 const timeDiff = (note.expectedDuration || 0) - (note.actualDuration || 0);
-                const diffText = timeDiff > 0
-                    ? `${lang.savedTime}: ${timeDiff} ${lang.timeUnit}`
-                    : `${lang.overtime}: ${Math.abs(timeDiff)} ${lang.timeUnit}`;
-
-                let completedAtStr = "--:--";
-                if (note.endTime) {
-                    const endDate = new Date(note.endTime);
-                    const hours = String(endDate.getHours()).padStart(2, '0');
-                    const minutes = String(endDate.getMinutes()).padStart(2, '0');
-                    const day = String(endDate.getDate()).padStart(2, '0');
-                    const month = String(endDate.getMonth() + 1).padStart(2, '0');
-                    completedAtStr = `${hours}:${minutes} (${day}/${month})`;
-                }
-
-                const completionColor = note.isOnTime ? '#059669' : '#d97706';
-
+                
+                // ✅ FIX: Ghép các từ khóa đã dịch với số
+                const diffText = timeDiff > 0 ? `${tTietKiem} ${timeDiff} ${tPhut}` : `${tVuot} ${Math.abs(timeDiff)} ${tPhut}`;
+                
+                const end = new Date(note.endTime);
+                const completedAtStr = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')} (${String(end.getDate()).padStart(2, '0')}/${String(end.getMonth() + 1).padStart(2, '0')})`;
+                
                 let subTaskProgressHTML = '';
                 if (note.subTasks && note.subTasks.length > 0) {
                     const progress = calculateProgress(note.subTasks);
                     let progressClass = progress === 100 ? 'complete' : progress >= 67 ? 'high' : progress >= 34 ? 'medium' : 'low';
                     let progressIcon = progress === 100 ? '✅' : progress >= 67 ? '🟢' : progress >= 34 ? '🟡' : '🔴';
-
-                    subTaskProgressHTML = `
-                <p style="margin-top: 5px;">
-                    <span class="sub-task-progress ${progressClass}">
-                        ${progressIcon} ${lang.subTaskProgressLabel || 'Tiến độ'}: ${progress}% (${note.subTasks.filter(t => t.completed).length}/${note.subTasks.length})
-                    </span>
-                </p>`;
+                    
+                    // ✅ FIX: Ghép chữ "Tiến độ" đã dịch
+                    subTaskProgressHTML = `<p style="margin-top: 5px;"><span class="sub-task-progress ${progressClass}">${progressIcon} ${tTienDo} ${progress}% (${note.subTasks.filter(t => t.completed).length}/${note.subTasks.length})</span></p>`;
                 }
-
+                
                 item.innerHTML = `
             <i class="fas ${note.isOnTime ? 'fa-check-circle' : 'fa-exclamation-circle'} status-icon"></i>
             <div class="note-info">
                 <h5>${note.title}</h5>
-                <p style="margin-bottom: 2px;">
-                    <i class="far fa-clock"></i> ${lang.reportSchedule}: ${getDayName(note.dayOfWeek || 0)} - ${note.time}
-                </p>
-                <p style="color: ${completionColor}; font-weight: 600;">
-                    <i class="fas fa-check-double"></i> ${lang.reportCompleted}: ${completedAtStr}
-                </p>
+                <p style="margin-bottom: 2px;"><i class="far fa-clock"></i> ${tLich} <span>${getDayName(note.dayOfWeek || 0)}</span> - ${note.time}</p>
+                <p style="color: ${note.isOnTime ? '#059669' : '#d97706'}; font-weight: 600;"><i class="fas fa-check-double"></i> ${tXong} ${completedAtStr}</p>
                 ${subTaskProgressHTML}
             </div>
             <div class="time-stats">
-                <span>${lang.expectedTime}: ${note.expectedDuration || 0} ${lang.timeUnit}</span>
-                <span>${lang.actualTime}: ${note.actualDuration || 0} ${lang.timeUnit}</span>
+                <span>${tDuKien} ${note.expectedDuration || 0} ${tPhut}</span>
+                <span>${tThucTe} ${note.actualDuration || 0} ${tPhut}</span>
             </div>
-            <div class="time-diff ${timeDiff > 0 ? 'positive' : 'negative'}">
-                ${diffText}
-            </div>`;
-
+            <div class="time-diff ${timeDiff > 0 ? 'positive' : 'negative'}">${diffText}</div>`;
                 timeReportsList.appendChild(item);
             });
         }
-
         renderTimeReportsChart(filteredNotes);
+        
+        // Dịch nốt các thành phần còn lại (như Tiêu đề task, Ngày trong tuần...)
+        translateDynamicElement(timeReportsList);
     }
 
     function getReportDateRange(period) {
         const now = new Date();
         let startDate, endDate, periodLabel;
-        const lang = translations[currentLanguage];
-
         switch (period) {
             case 'week':
-                startDate = new Date(now);
-                startDate.setDate(now.getDate() - now.getDay());
-                startDate.setHours(0, 0, 0, 0);
-                endDate = new Date(startDate);
-                endDate.setDate(startDate.getDate() + 6);
-                endDate.setHours(23, 59, 59, 999);
-                periodLabel = `${lang.thisWeek} (${startDate.toLocaleDateString(currentLanguage === 'vi' ? 'vi-VN' : 'en-US')} - ${endDate.toLocaleDateString(currentLanguage === 'vi' ? 'vi-VN' : 'en-US')})`;
+                startDate = new Date(now); startDate.setDate(now.getDate() - now.getDay()); startDate.setHours(0, 0, 0, 0);
+                endDate = new Date(startDate); endDate.setDate(startDate.getDate() + 6); endDate.setHours(23, 59, 59, 999);
+                periodLabel = `Tuần này (${startDate.toLocaleDateString('vi-VN')} - ${endDate.toLocaleDateString('vi-VN')})`;
                 break;
-
             case 'month':
                 startDate = new Date(now.getFullYear(), now.getMonth(), 1);
                 endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-                periodLabel = `${lang.monthText} ${now.getMonth() + 1}/${now.getFullYear()}`;
+                periodLabel = `Tháng ${now.getMonth() + 1}/${now.getFullYear()}`;
                 break;
-
             case 'year':
                 startDate = new Date(now.getFullYear(), 0, 1);
                 endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
-                periodLabel = `${lang.yearText} ${now.getFullYear()}`;
+                periodLabel = `Năm ${now.getFullYear()}`;
                 break;
-
             case 'all':
-                startDate = new Date(2020, 0, 1);
-                endDate = new Date(2100, 11, 31, 23, 59, 59, 999);
-                periodLabel = lang.allTime;
+                startDate = new Date(2020, 0, 1); endDate = new Date(2100, 11, 31, 23, 59, 59, 999);
+                periodLabel = 'Tất cả';
                 break;
-
             case 'specific-week':
-                const weekValue = specificWeek.value;
-                if (weekValue) {
-                    const [year, week] = weekValue.split('-W').map(Number);
+                if (specificWeek.value) {
+                    const [year, week] = specificWeek.value.split('-W').map(Number);
                     startDate = getDateOfISOWeek(week, year);
-                    endDate = new Date(startDate);
-                    endDate.setDate(startDate.getDate() + 6);
-                    endDate.setHours(23, 59, 59, 999);
-                    periodLabel = `${lang.weekText} ${week}/${year}`;
-                } else {
-                    // Fallback nếu user chưa chọn
-                    startDate = new Date(); endDate = new Date();
-                    periodLabel = lang.specificWeek;
-                }
+                    endDate = new Date(startDate); endDate.setDate(startDate.getDate() + 6); endDate.setHours(23, 59, 59, 999);
+                    periodLabel = `Tuần ${week}/${year}`;
+                } else { startDate = new Date(); endDate = new Date(); periodLabel = 'Chọn tuần...'; }
                 break;
-
             case 'specific-month':
-                const monthValue = specificMonth.value;
-                if (monthValue) {
-                    const [year, month] = monthValue.split('-').map(Number);
+                if (specificMonth.value) {
+                    const [year, month] = specificMonth.value.split('-').map(Number);
                     startDate = new Date(year, month - 1, 1);
                     endDate = new Date(year, month, 0, 23, 59, 59, 999);
-                    periodLabel = `${lang.monthText} ${month}/${year}`;
-                } else {
-                    startDate = new Date(); endDate = new Date();
-                    periodLabel = lang.specificMonth;
-                }
+                    periodLabel = `Tháng ${month}/${year}`;
+                } else { startDate = new Date(); endDate = new Date(); periodLabel = 'Chọn tháng...'; }
                 break;
-
             case 'specific-year':
                 const yearValue = parseInt(specificYear.value);
                 if (yearValue) {
                     startDate = new Date(yearValue, 0, 1);
                     endDate = new Date(yearValue, 11, 31, 23, 59, 59, 999);
-                    periodLabel = `${lang.yearText} ${yearValue}`;
-                } else {
-                    startDate = new Date(); endDate = new Date();
-                    periodLabel = lang.specificYear;
-                }
+                    periodLabel = `Năm ${yearValue}`;
+                } else { startDate = new Date(); endDate = new Date(); periodLabel = 'Chọn năm...'; }
                 break;
         }
-
         return { startDate, endDate, periodLabel };
     }
 
@@ -3537,502 +2166,183 @@ document.addEventListener("DOMContentLoaded", function () {
         specificWeek.value = `${year}-W${String(weekNumber).padStart(2, '0')}`;
     }
 
-       function renderTimeReportsChart(weeklyNotes) {
-        if (window.timeReportsChartInstance) {
-            window.timeReportsChartInstance.destroy();
-        }
-
-        const chartContainer = document.querySelector('.chart-container');
-        if (!chartContainer) return;
-
-        chartContainer.innerHTML = '<canvas id="timeReportsChart"></canvas>';
+    // ✅ FIX: Thêm async để chờ dịch chữ xong mới vẽ Chart
+    async function renderTimeReportsChart(weeklyNotes) {
+        if (window.timeReportsChartInstance) window.timeReportsChartInstance.destroy();
         const ctx = document.getElementById('timeReportsChart');
         if (!ctx) return;
-
         const onTimeData = [0, 0, 0, 0, 0, 0, 0];
         const lateData = [0, 0, 0, 0, 0, 0, 0];
-        
         const timeDiffSum = [0, 0, 0, 0, 0, 0, 0];
         const taskCountPerDay = [0, 0, 0, 0, 0, 0, 0];
         const avgTimeDiffData = [0, 0, 0, 0, 0, 0, 0];
-
         weeklyNotes.forEach(note => {
             const day = note.dayOfWeek || 0;
-            
-            if (note.isOnTime) {
-                onTimeData[day]++;
-            } else {
-                lateData[day]++;
-            }
-
-            const timeDiff = (note.expectedDuration || 0) - (note.actualDuration || 0);
-            timeDiffSum[day] += timeDiff;
+            if (note.isOnTime) onTimeData[day]++; else lateData[day]++;
+            timeDiffSum[day] += (note.expectedDuration || 0) - (note.actualDuration || 0);
             taskCountPerDay[day]++;
         });
-
-        for (let i = 0; i < 7; i++) {
-            if (taskCountPerDay[i] > 0) {
-                avgTimeDiffData[i] = Math.round(timeDiffSum[i] / taskCountPerDay[i]);
-            } else {
-                avgTimeDiffData[i] = 0; 
-            }
-        }
-
+        for (let i = 0; i < 7; i++) avgTimeDiffData[i] = taskCountPerDay[i] > 0 ? Math.round(timeDiffSum[i] / taskCountPerDay[i]) : 0;
         const stackedTasks = onTimeData.map((val, i) => val + lateData[i]);
         let maxTasks = Math.max(...stackedTasks, 1);
-        let yMax = Math.ceil(maxTasks * 1.2); 
+        let yMax = Math.ceil(maxTasks * 1.2);
         let yMin = 0;
-
         const hasNegativeDiff = avgTimeDiffData.some(v => v < 0);
         let maxAbsDiff = Math.max(...avgTimeDiffData.map(Math.abs), 1);
         let y1Max = Math.ceil(maxAbsDiff * 1.2);
         let y1Min = 0;
+        if (hasNegativeDiff) { yMin = -yMax; y1Min = -y1Max; }
 
-        if (hasNegativeDiff) {
-            yMin = -yMax;
-            y1Min = -y1Max;
+        // ==========================================
+        // ✅ FIX: Dịch chữ trước khi đưa vào Chart.js
+        // ==========================================
+        let labels = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+        let labelLine = 'TB Tiết kiệm/Vượt (phút)';
+        let labelBar1 = 'Hoàn thành đúng hạn';
+        let labelBar2 = 'Hoàn thành trễ';
+        let yTitle = 'Số lượng Task';
+        let y1Title = 'Phút (Tiết kiệm > 0 | Vượt < 0)';
+
+        if (currentLanguage !== 'vi' && window.autoTranslate) {
+            labels = await Promise.all(labels.map(l => window.autoTranslate.translateText(l, currentLanguage)));
+            labelLine = await window.autoTranslate.translateText(labelLine, currentLanguage);
+            labelBar1 = await window.autoTranslate.translateText(labelBar1, currentLanguage);
+            labelBar2 = await window.autoTranslate.translateText(labelBar2, currentLanguage);
+            yTitle = await window.autoTranslate.translateText(yTitle, currentLanguage);
+            y1Title = await window.autoTranslate.translateText(y1Title, currentLanguage);
         }
-
-        const lang = translations[currentLanguage];
-        const dayLabels = [
-            lang.sunday, lang.monday, lang.tuesday, lang.wednesday,
-            lang.thursday, lang.friday, lang.saturday
-        ];
 
         window.timeReportsChartInstance = new Chart(ctx, {
             data: {
-                labels: dayLabels,
+                labels: labels, // Dùng mảng đã dịch
                 datasets: [
-                    {
-                        type: 'line',
-                        label: lang.avgTimeDiffText || 'TB Tiết kiệm/Vượt (phút)',
-                        data: avgTimeDiffData,
-                        borderColor: '#3b82f6', 
-                        backgroundColor: '#3b82f6',
-                        borderWidth: 2,
-                        tension: 0.3, 
-                        pointBackgroundColor: '#ffffff',
-                        pointBorderColor: '#3b82f6',
-                        pointBorderWidth: 2,
-                        pointRadius: 4,
-                        yAxisID: 'y1', 
-                        order: 0 
-                    },
-                    {
-                        type: 'bar',
-                        label: lang.onTimeTasksText,
-                        data: onTimeData,
-                        backgroundColor: 'rgba(16, 185, 129, 0.8)', 
-                        borderColor: 'rgb(16, 185, 129)',
-                        borderWidth: 1,
-                        borderRadius: 5,
-                        yAxisID: 'y', 
-                        order: 1
-                    },
-                    {
-                        type: 'bar',
-                        label: lang.lateTasksText,
-                        data: lateData,
-                        backgroundColor: 'rgba(239, 68, 68, 0.8)', 
-                        borderColor: 'rgb(239, 68, 68)',
-                        borderWidth: 1,
-                        borderRadius: 5,
-                        yAxisID: 'y', 
-                        order: 2
-                    }
+                    { type: 'line', label: labelLine, data: avgTimeDiffData, borderColor: '#3b82f6', backgroundColor: '#3b82f6', borderWidth: 2, tension: 0.3, yAxisID: 'y1', order: 0 },
+                    { type: 'bar', label: labelBar1, data: onTimeData, backgroundColor: 'rgba(16, 185, 129, 0.8)', borderColor: 'rgb(16, 185, 129)', borderWidth: 1, borderRadius: 5, yAxisID: 'y', order: 1 },
+                    { type: 'bar', label: labelBar2, data: lateData, backgroundColor: 'rgba(239, 68, 68, 0.8)', borderColor: 'rgb(239, 68, 68)', borderWidth: 1, borderRadius: 5, yAxisID: 'y', order: 2 }
                 ]
             },
             options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: {
-                    mode: 'index', 
-                    intersect: false,
-                },
+                responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
                 scales: {
-                    x: {
-                        stacked: true, 
-                    },
-                    y: {
-                        type: 'linear',
-                        display: true,
-                        position: 'left',
-                        stacked: true, 
-                        min: yMin, 
-                        max: yMax,
-                        title: {
-                            display: true,
-                            text: lang.taskCountText || 'Số lượng Task',
-                            color: '#6b7280',
-                            font: { size: 11 }
-                        },
-                        grid: {
-                            color: (context) => {
-                                if (context.tick.value === 0) {
-                                    return 'rgba(0, 0, 0, 0.6)'; // Đậm đường 0
-                                }
-                                return 'rgba(0, 0, 0, 0.05)';
-                            },
-                            lineWidth: (context) => {
-                                if (context.tick.value === 0) {
-                                    return 2.5; // Dày đường 0
-                                }
-                                return 1;
-                            }
-                        },
-                        ticks: {
-                            maxTicksLimit: 7,
-                            callback: function(value) {
-                                if (value < 0) return ''; 
-                                if (Math.floor(value) !== value) return ''; 
-                                return value;
-                            }
-                        }
-                    },
-                    y1: {
-                        type: 'linear',
-                        display: true,
-                        position: 'right',
-                        min: y1Min, 
-                        max: y1Max,
-                        title: {
-                            display: true,
-                            text: lang.minutesAxisText || 'Phút (Tiết kiệm > 0 | Vượt < 0)',
-                            color: '#3b82f6',
-                            font: { size: 11 }
-                        },
-                        grid: {
-                            drawOnChartArea: false, 
-                        },
-                        ticks: {
-                            maxTicksLimit: 7
-                        }
-                    }
+                    x: { stacked: true },
+                    y: { type: 'linear', display: true, position: 'left', stacked: true, min: yMin, max: yMax, title: { display: true, text: yTitle, color: '#6b7280', font: { size: 11 } } },
+                    y1: { type: 'linear', display: true, position: 'right', min: y1Min, max: y1Max, title: { display: true, text: y1Title, color: '#3b82f6', font: { size: 11 } }, grid: { drawOnChartArea: false } }
                 }
             }
         });
     }
 
+
     async function exportToExcel() {
-        const lang = translations[currentLanguage];
-
-        if (notes.length === 0) {
-            showToast(lang.toastNoNotesToExport, 'info');
-            return;
-        }
-
+        if (notes.length === 0) { showToast('Không có công việc nào để xuất!', 'info'); return; }
         const workbook = new ExcelJS.Workbook();
         workbook.creator = 'Notes App';
         workbook.created = new Date();
-
         const dayColors = ['EF4444', 'F59E0B', 'EAB308', '10B981', '3B82F6', '6366F1', '8B5CF6'];
         const dayBgColors = ['FFFECACA', 'FFFED7AA', 'FFFEF3C7', 'FFD1FAE5', 'FFDBEAFE', 'FFE0E7FF', 'FFEDE9FE'];
-
-        // ==========================================
-        // HELPER: Format Sub-tasks text (CÓ LINK)
-        // ==========================================
         const formatSubTasks = (subTasks) => {
             if (!subTasks || subTasks.length === 0) return '';
-
             const progress = calculateProgress(subTasks);
             const total = subTasks.length;
             const completed = subTasks.filter(t => t.completed).length;
-
             let result = `[ ${progress}% ] (${completed}/${total})\n`;
-
-            subTasks.forEach(task => {
-                const check = task.completed ? '☑' : '☐';
-                let line = `${check} ${task.text}`;
-
-                if (task.link && task.link.trim() !== '') {
-                    line += ` [Link: ${task.link}]`;
-                }
-
-                result += `${line}\n`;
-            });
-
+            subTasks.forEach(task => { result += `${task.completed ? '☑' : '☐'} ${task.text}${task.link ? ` [Link: ${task.link}]` : ''}\n`; });
             return result;
         };
-
-        // ==========================================
-        // 1. SHEET TỔNG HỢP
-        // ==========================================
-        const wsAll = workbook.addWorksheet(lang.excelSheetAll, {
-            views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }]
-        });
+        const wsAll = workbook.addWorksheet('Tất cả', { views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }] });
         wsAll.properties.tabColor = { argb: 'FF4F46E5' };
-
-        // Định nghĩa cột (Đã thêm cột Temporary)
         wsAll.columns = [
-            { header: lang.excelColDay, key: 'day', width: 15 },          // 1
-            { header: lang.excelColTitle, key: 'title', width: 25 },      // 2
-            { header: lang.excelColContent, key: 'content', width: 35 },  // 3
-            { header: lang.excelColSubTasks, key: 'subtasks', width: 45 },// 4
-            { header: lang.excelColTime, key: 'time', width: 12 },        // 5
-            { header: lang.excelColTag, key: 'tag', width: 15 },          // 6
-            { header: lang.excelColStatus, key: 'status', width: 15 },    // 7
-            { header: lang.excelColTemporary || 'Task tạm', key: 'temporary', width: 12 }, // 8 (MỚI)
-            { header: lang.excelColExpected, key: 'expected', width: 12 },// 9
-            { header: lang.excelColActual, key: 'actual', width: 12 },    // 10
-            { header: lang.excelColPerformance, key: 'performance', width: 15 } // 11
+            { header: 'Ngày', key: 'day', width: 15 }, { header: 'Tiêu đề', key: 'title', width: 25 }, { header: 'Nội dung', key: 'content', width: 35 },
+            { header: 'Công việc con', key: 'subtasks', width: 45 }, { header: 'Thời gian', key: 'time', width: 12 }, { header: 'Thẻ', key: 'tag', width: 15 },
+            { header: 'Trạng thái', key: 'status', width: 15 }, { header: 'Task tạm', key: 'temporary', width: 12 }, { header: 'Dự kiến (phút)', key: 'expected', width: 12 },
+            { header: 'Thực tế (phút)', key: 'actual', width: 12 }, { header: 'Hiệu suất', key: 'performance', width: 15 }
         ];
-
-        // Style Header
         wsAll.getRow(1).height = 30;
-        wsAll.getRow(1).eachCell((cell) => {
-            cell.font = { name: 'Calibri', bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
-            cell.alignment = { horizontal: 'center', vertical: 'middle' };
-            cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
-        });
-
-        // Thêm dữ liệu
+        wsAll.getRow(1).eachCell((cell) => { cell.font = { name: 'Calibri', bold: true, color: { argb: 'FFFFFFFF' }, size: 12 }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } }; cell.alignment = { horizontal: 'center', vertical: 'middle' }; cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } }; });
         notes.forEach((note, index) => {
             const noteTag = tags.find(t => t.id === note.tag);
-            const tagName = noteTag ? getTagName(noteTag) : lang.undefinedTag;
-            const status = note.completed ? lang.completedStatus : lang.incompleteStatus;
+            const tagName = noteTag ? getTagName(noteTag) : 'Không xác định';
+            const status = note.completed ? 'Đã hoàn thành' : 'Chưa hoàn thành';
             const dayName = getDayName(note.dayOfWeek || 0);
-
-            const expected = note.expectedDuration ? note.expectedDuration : '';
-            const actual = note.actualDuration ? note.actualDuration : '';
             let performance = '';
-            if (note.completed && typeof note.isOnTime === 'boolean') {
-                performance = note.isOnTime ? lang.performanceOnTime : lang.performanceLate;
-            }
-
-            const row = wsAll.addRow({
-                day: dayName,
-                title: note.title,
-                content: note.content,
-                subtasks: formatSubTasks(note.subTasks),
-                time: note.time,
-                tag: tagName,
-                status: status,
-                temporary: note.isTemporaryTask ? (lang.yes || 'Có') : (lang.no || 'Không'), // MỚI
-                expected: expected,
-                actual: actual,
-                performance: performance
-            });
-
-            const rowIndex = index + 2;
-            const rowObj = wsAll.getRow(rowIndex);
-
-            const subTaskLines = note.subTasks ? note.subTasks.length + 1 : 1;
-            rowObj.height = Math.max(25, subTaskLines * 15);
-
-            const bgColor = rowIndex % 2 === 0 ? 'FFF8F9FA' : 'FFFFFFFF';
-            const dayOfWeek = note.dayOfWeek || 0;
-
+            if (note.completed && typeof note.isOnTime === 'boolean') performance = note.isOnTime ? 'Đúng giờ' : 'Trễ';
+            wsAll.addRow({ day: dayName, title: note.title, content: note.content, subtasks: formatSubTasks(note.subTasks), time: note.time, tag: tagName, status: status, temporary: note.isTemporaryTask ? 'Có' : 'Không', expected: note.expectedDuration || '', actual: note.actualDuration || '', performance: performance });
+            const rowIndex = index + 2; const rowObj = wsAll.getRow(rowIndex);
+            rowObj.height = Math.max(25, (note.subTasks ? note.subTasks.length + 1 : 1) * 15);
             rowObj.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-                cell.font = { name: 'Calibri', size: 11 };
-                cell.border = { top: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } } };
-                cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
-                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
-
-                if (colNumber === 1) { // Ngày
-                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: dayBgColors[dayOfWeek] } };
-                    cell.font = { bold: true, underline: 'single', color: { argb: 'FF1F2937' } };
-                    cell.alignment = { horizontal: 'center', vertical: 'middle' };
-                    const targetSheetName = getDayName(dayOfWeek);
-                    cell.value = { text: dayName, hyperlink: `#'${targetSheetName}'!A1`, tooltip: `Go to ${targetSheetName}` };
-                }
-                else if (colNumber === 7) { // Status
-                    cell.font = { bold: true, color: { argb: note.completed ? 'FF059669' : 'FFDC2626' } };
-                    cell.alignment = { horizontal: 'center', vertical: 'middle' };
-                }
-                else if (colNumber === 8) { // Temporary (MỚI)
-                    cell.alignment = { horizontal: 'center', vertical: 'middle' };
-                    cell.font = { bold: note.isTemporaryTask, color: { argb: note.isTemporaryTask ? 'FFEF4444' : 'FF6B7280' }, size: 11 };
-                }
-                else if (colNumber === 11 && performance) { // Performance
-                    cell.fill = {
-                        type: 'pattern',
-                        pattern: 'solid',
-                        fgColor: { argb: note.isOnTime ? 'FFD1FAE5' : 'FFFEE2E2' }
-                    };
-                    cell.font = {
-                        bold: true,
-                        color: { argb: note.isOnTime ? 'FF047857' : 'FFB91C1C' }
-                    };
-                    cell.alignment = { horizontal: 'center', vertical: 'middle' };
-                }
-                else if ([5, 9, 10].includes(colNumber)) { // Time, Expected, Actual
-                    cell.alignment = { horizontal: 'center', vertical: 'middle' };
-                }
+                cell.font = { name: 'Calibri', size: 11 }; cell.border = { top: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } } }; cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowIndex % 2 === 0 ? 'FFF8F9FA' : 'FFFFFFFF' } };
+                if (colNumber === 1) { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: dayBgColors[note.dayOfWeek || 0] } }; cell.font = { bold: true, underline: 'single', color: { argb: 'FF1F2937' } }; cell.alignment = { horizontal: 'center', vertical: 'middle' }; cell.value = { text: dayName, hyperlink: `#'${getDayName(note.dayOfWeek || 0)}'!A1` }; }
+                else if (colNumber === 7) { cell.font = { bold: true, color: { argb: note.completed ? 'FF059669' : 'FFDC2626' } }; cell.alignment = { horizontal: 'center', vertical: 'middle' }; }
+                else if (colNumber === 8) { cell.alignment = { horizontal: 'center', vertical: 'middle' }; cell.font = { bold: note.isTemporaryTask, color: { argb: note.isTemporaryTask ? 'FFEF4444' : 'FF6B7280' }, size: 11 }; }
+                else if (colNumber === 11 && performance) { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: note.isOnTime ? 'FFD1FAE5' : 'FFFEE2E2' } }; cell.font = { bold: true, color: { argb: note.isOnTime ? 'FF047857' : 'FFB91C1C' } }; cell.alignment = { horizontal: 'center', vertical: 'middle' }; }
+                else if ([5, 9, 10].includes(colNumber)) cell.alignment = { horizontal: 'center', vertical: 'middle' };
             });
         });
-
         wsAll.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 11 } };
 
-        // ==========================================
-        // 2. SHEET CHI TIẾT TỪNG NGÀY
-        // ==========================================
         for (let i = 0; i < 7; i++) {
             const dayNotes = notes.filter(note => note.dayOfWeek === i);
-
             if (dayNotes.length > 0) {
                 const dayName = getDayName(i);
                 const ws = workbook.addWorksheet(dayName, { views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }] });
                 ws.properties.tabColor = { argb: `FF${dayColors[i]}` };
-
                 ws.columns = [
-                    { header: lang.excelColTitle, key: 'title', width: 30 },      // 1
-                    { header: lang.excelColContent, key: 'content', width: 35 },  // 2
-                    { header: lang.excelColSubTasks, key: 'subtasks', width: 45 },// 3
-                    { header: lang.excelColTime, key: 'time', width: 12 },        // 4
-                    { header: lang.excelColTag, key: 'tag', width: 15 },          // 5
-                    { header: lang.excelColStatus, key: 'status', width: 15 },    // 6
-                    { header: lang.excelColTemporary || 'Task tạm', key: 'temporary', width: 12 }, // 7 (MỚI)
-                    { header: lang.excelColExpected, key: 'expected', width: 12 },// 8
-                    { header: lang.excelColActual, key: 'actual', width: 12 },    // 9
-                    { header: lang.excelColPerformance, key: 'performance', width: 15 } // 10
+                    { header: 'Tiêu đề', key: 'title', width: 30 }, { header: 'Nội dung', key: 'content', width: 35 }, { header: 'Công việc con', key: 'subtasks', width: 45 },
+                    { header: 'Thời gian', key: 'time', width: 12 }, { header: 'Thẻ', key: 'tag', width: 15 }, { header: 'Trạng thái', key: 'status', width: 15 },
+                    { header: 'Task tạm', key: 'temporary', width: 12 }, { header: 'Dự kiến', key: 'expected', width: 12 }, { header: 'Thực tế', key: 'actual', width: 12 },
+                    { header: 'Hiệu suất', key: 'performance', width: 15 }
                 ];
-
                 ws.getRow(1).height = 30;
-                ws.getRow(1).eachCell((cell) => {
-                    cell.font = { name: 'Calibri', bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
-                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${dayColors[i]}` } };
-                    cell.alignment = { horizontal: 'center', vertical: 'middle' };
-                });
-
+                ws.getRow(1).eachCell((cell) => { cell.font = { name: 'Calibri', bold: true, color: { argb: 'FFFFFFFF' }, size: 12 }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${dayColors[i]}` } }; cell.alignment = { horizontal: 'center', vertical: 'middle' }; });
                 dayNotes.forEach((note, index) => {
                     const noteTag = tags.find(t => t.id === note.tag);
-                    const tagName = noteTag ? getTagName(noteTag) : lang.undefinedTag;
-                    const status = note.completed ? lang.completedStatus : lang.incompleteStatus;
-
-                    const expected = note.expectedDuration ? note.expectedDuration : '';
-                    const actual = note.actualDuration ? note.actualDuration : '';
+                    const tagName = noteTag ? getTagName(noteTag) : 'Không xác định';
+                    const status = note.completed ? 'Đã hoàn thành' : 'Chưa hoàn thành';
                     let performance = '';
-                    if (note.completed && typeof note.isOnTime === 'boolean') {
-                        performance = note.isOnTime ? lang.performanceOnTime : lang.performanceLate;
-                    }
-
-                    const row = ws.addRow({
-                        title: note.title,
-                        content: note.content,
-                        subtasks: formatSubTasks(note.subTasks),
-                        time: note.time,
-                        tag: tagName,
-                        status: status,
-                        temporary: note.isTemporaryTask ? (lang.yes || 'Có') : (lang.no || 'Không'), // MỚI
-                        expected: expected,
-                        actual: actual,
-                        performance: performance
-                    });
-
-                    const rowIndex = index + 2;
-                    const rowObj = ws.getRow(rowIndex);
-                    const subTaskLines = note.subTasks ? note.subTasks.length + 1 : 1;
-                    rowObj.height = Math.max(25, subTaskLines * 15);
-
-                    const bgColor = rowIndex % 2 === 0 ? dayBgColors[i] : 'FFFFFFFF';
-
+                    if (note.completed && typeof note.isOnTime === 'boolean') performance = note.isOnTime ? 'Đúng giờ' : 'Trễ';
+                    ws.addRow({ title: note.title, content: note.content, subtasks: formatSubTasks(note.subTasks), time: note.time, tag: tagName, status: status, temporary: note.isTemporaryTask ? 'Có' : 'Không', expected: note.expectedDuration || '', actual: note.actualDuration || '', performance: performance });
+                    const rowIndex = index + 2; const rowObj = ws.getRow(rowIndex);
+                    rowObj.height = Math.max(25, (note.subTasks ? note.subTasks.length + 1 : 1) * 15);
                     rowObj.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-                        cell.font = { name: 'Calibri', size: 11 };
-                        cell.border = { top: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } } };
-                        cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
-                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
-
-                        if (colNumber === 6) { // Status
-                            cell.font = { bold: true, color: { argb: note.completed ? 'FF059669' : 'FFDC2626' } };
-                            cell.alignment = { horizontal: 'center', vertical: 'middle' };
-                        }
-                        else if (colNumber === 7) { // Temporary (MỚI)
-                            cell.alignment = { horizontal: 'center', vertical: 'middle' };
-                            cell.font = { bold: note.isTemporaryTask, color: { argb: note.isTemporaryTask ? 'FFEF4444' : 'FF6B7280' }, size: 11 };
-                        }
-                        else if (colNumber === 10 && performance) { // Performance
-                            cell.fill = {
-                                type: 'pattern',
-                                pattern: 'solid',
-                                fgColor: { argb: note.isOnTime ? 'FFD1FAE5' : 'FFFEE2E2' }
-                            };
-                            cell.font = {
-                                bold: true,
-                                color: { argb: note.isOnTime ? 'FF047857' : 'FFB91C1C' }
-                            };
-                            cell.alignment = { horizontal: 'center', vertical: 'middle' };
-                        }
-                        else if ([4, 8, 9].includes(colNumber)) { // Numbers
-                            cell.alignment = { horizontal: 'center', vertical: 'middle' };
-                        }
+                        cell.font = { name: 'Calibri', size: 11 }; cell.border = { top: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } } }; cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowIndex % 2 === 0 ? dayBgColors[i] : 'FFFFFFFF' } };
+                        if (colNumber === 6) { cell.font = { bold: true, color: { argb: note.completed ? 'FF059669' : 'FFDC2626' } }; cell.alignment = { horizontal: 'center', vertical: 'middle' }; }
+                        else if (colNumber === 7) { cell.alignment = { horizontal: 'center', vertical: 'middle' }; cell.font = { bold: note.isTemporaryTask, color: { argb: note.isTemporaryTask ? 'FFEF4444' : 'FF6B7280' }, size: 11 }; }
+                        else if (colNumber === 10 && performance) { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: note.isOnTime ? 'FFD1FAE5' : 'FFFEE2E2' } }; cell.font = { bold: true, color: { argb: note.isOnTime ? 'FF047857' : 'FFB91C1C' } }; cell.alignment = { horizontal: 'center', vertical: 'middle' }; }
+                        else if ([4, 8, 9].includes(colNumber)) cell.alignment = { horizontal: 'center', vertical: 'middle' };
                     });
                 });
-
-                // Back link
                 const backLinkCell = ws.getCell('A1');
-                const originalValue = backLinkCell.value;
-                backLinkCell.value = {
-                    text: originalValue,
-                    hyperlink: `#'${lang.excelSheetAll}'!A1`,
-                    tooltip: `Back to ${lang.excelSheetAll}`
-                };
-
+                backLinkCell.value = { text: backLinkCell.value, hyperlink: `#'Tất cả'!A1` };
                 ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 10 } };
             }
         }
-
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${lang.excelFileName}_${new Date().toISOString().split('T')[0]}.xlsx`;
-        a.click();
-        window.URL.revokeObjectURL(url);
-
-        showToast(lang.toastExcelExported, 'success');
+        const a = document.createElement('a'); a.href = url; a.download = `Ghi_Chu_Tuan_${new Date().toISOString().split('T')[0]}.xlsx`; a.click(); window.URL.revokeObjectURL(url);
+        showToast('File Excel đã được xuất!', 'success');
     }
 
     async function checkAndCreateUserDocument(user) {
         if (!user) return;
         const userDocRef = db.collection('users').doc(user.uid);
-        const lang = translations[currentLanguage]; // MỚI
-
         try {
             const doc = await userDocRef.get();
-
             if (!doc.exists) {
                 const userData = {
-                    name: user.displayName || 'New User',
-                    email: user.email,
-                    email_lowercase: user.email.toLowerCase(),
-                    photoURL: user.photoURL || null,
-                    providers: ['password'],
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    settings: {
-                        language: 'vi',
-                        theme: 'light',
-                        noteColumns: 3,
-                        backgroundColor: '#f8f9fa',
-                        notificationTimeBefore: 5
-                    }
+                    name: user.displayName || 'New User', email: user.email, email_lowercase: user.email.toLowerCase(), photoURL: user.photoURL || null, providers: ['password'], createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    settings: { language: 'vi', theme: 'light', noteColumns: 3, backgroundColor: '#f8f9fa', notificationTimeBefore: 5 }
                 };
-
                 await userDocRef.set(userData);
-                // MỚI: Sử dụng ngôn ngữ
-                showToast(lang.welcomeNewUser.replace('{name}', userData.name), 'success');
+                showToast(`Chào mừng ${userData.name}! Đã tạo hồ sơ cho bạn.`, 'success');
             } else {
                 const userData = doc.data();
-                let providers = [];
-                if (Array.isArray(userData.providers)) {
-                    providers = userData.providers;
-                } else if (userData.provider) {
-                    providers = Array.isArray(userData.provider) ? userData.provider : [userData.provider];
-                    await userDocRef.update({
-                        providers: providers,
-                        provider: firebase.firestore.FieldValue.delete()
-                    });
-                } else {
-                    providers = ['password'];
-                    await userDocRef.update({ providers: providers });
-                }
+                let providers = Array.isArray(userData.providers) ? userData.providers : (userData.provider ? (Array.isArray(userData.provider) ? userData.provider : [userData.provider]) : ['password']);
+                if (userData.provider) await userDocRef.update({ providers: providers, provider: firebase.firestore.FieldValue.delete() });
+                else await userDocRef.update({ providers: providers });
             }
-        } catch (error) {
-            console.error("Error checking/creating user document:", error);
-        }
+        } catch (error) { console.error("Error checking/creating user document:", error); }
     }
-
 
     let lastCheckedDate = new Date().getDate();
 
@@ -4080,67 +2390,27 @@ document.addEventListener("DOMContentLoaded", function () {
         updateDateTime();
     }
 
-    function filterNotes() {
-
-    }
-
     function checkAndScheduleNotifications(notesList) {
-        // Xóa interval cũ để tránh chạy chồng chéo
-        if (notificationInterval) {
-            clearInterval(notificationInterval);
-        }
-
-        // Lấy cài đặt thời gian thông báo
-        // Đặt trong interval để nếu user đổi setting thì cập nhật ngay mà không cần reload
-
+        if (notificationInterval) clearInterval(notificationInterval);
         notificationInterval = setInterval(() => {
             const notificationTimeBefore = parseInt(localStorage.getItem('notificationTimeBefore') || '5');
-
-            // Nếu tắt thông báo (0 phút) thì dừng kiểm tra
             if (notificationTimeBefore === 0) return;
-
             const now = new Date();
-            const currentDay = now.getDay(); // 0 (CN) - 6 (T7)
-
+            const currentDay = now.getDay();
             notesList.forEach(note => {
-                // 1. Bỏ qua nếu đã hoàn thành hoặc đã thông báo
-                if (note.completed || notifiedNotes.has(note.id)) return;
-
-                // 2. QUAN TRỌNG: Kiểm tra có đúng ngày hôm nay không
-                // Lưu ý: note.dayOfWeek có thể là string hoặc number, nên parse ra số để so sánh
-                if (parseInt(note.dayOfWeek) !== currentDay) return;
-
-                // 3. Tính toán thời gian
+                if (note.completed || notifiedNotes.has(note.id) || parseInt(note.dayOfWeek) !== currentDay) return;
                 if (note.time) {
                     const [noteHour, noteMinute] = note.time.split(':').map(Number);
-
-                    // Tạo đối tượng Date cho thời gian của ghi chú (trong ngày hôm nay)
-                    const noteTimeDate = new Date();
-                    noteTimeDate.setHours(noteHour, noteMinute, 0, 0);
-
-                    // Tính khoảng cách thời gian (ms)
-                    const diffMs = noteTimeDate - now;
-                    const diffMinutes = diffMs / (1000 * 60);
-
-                    // 4. Logic kiểm tra:
-                    // - diffMinutes <= notificationTimeBefore: Đã đến lúc thông báo
-                    // - diffMinutes > 0: Chưa quá giờ (chưa trễ)
+                    const noteTimeDate = new Date(); noteTimeDate.setHours(noteHour, noteMinute, 0, 0);
+                    const diffMinutes = (noteTimeDate - now) / (1000 * 60);
                     if (diffMinutes <= notificationTimeBefore && diffMinutes > 0) {
-                        const lang = translations[currentLanguage];
-                        const message = lang.notificationReminder.replace('{title}', note.title);
-
-                        // Hiển thị Toast (màu vàng cảnh báo, hiện lâu hơn chút - 10s)
-                        showToast(message, 'warning', 10000);
-
-                        // Phát âm thanh (Tùy chọn - xem phần 2 bên dưới)
+                        showToast(`Nhắc nhở: Đến giờ '${note.title}'`, 'warning', 10000);
                         playNotificationSound();
-
-                        // Đánh dấu đã thông báo để không spam
                         notifiedNotes.add(note.id);
                     }
                 }
             });
-        }, 10000); // Kiểm tra mỗi 10 giây (nhanh hơn 30s để chính xác hơn)
+        }, 10000);
     }
 
     function playNotificationSound() {
@@ -4229,183 +2499,66 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     async function completeAllNotes() {
-        const lang = translations[currentLanguage]; // Lấy ngôn ngữ hiện tại
-
-        // 1. Xác định ngày cần xử lý
         const selectedDayFilter = document.getElementById("dayOfWeekSelect").value;
-        let targetDay;
-
-        if (selectedDayFilter === "all") {
-            targetDay = new Date().getDay();
-        } else {
-            targetDay = parseInt(selectedDayFilter);
-        }
-
-        // 2. Lọc các ghi chú thuộc ngày đó và CHƯA hoàn thành
-        const notesToComplete = notes.filter(note =>
-            note.dayOfWeek === targetDay && !note.completed
-        );
-
-        if (notesToComplete.length === 0) {
-            showToast(lang.noNotesToCompleteOnDay, 'info');
-            return;
-        }
-
-        // 3. Batch update
+        const targetDay = selectedDayFilter === "all" ? new Date().getDay() : parseInt(selectedDayFilter);
+        const notesToComplete = notes.filter(note => note.dayOfWeek === targetDay && !note.completed);
+        if (notesToComplete.length === 0) { showToast('Không có công việc nào cần hoàn thành cho ngày này!', 'info'); return; }
         const batch = db.batch();
         const now = new Date();
         const endTime = now.toISOString();
-
         notesToComplete.forEach(note => {
             const noteRef = db.collection('notes').doc(note.id);
-
-            if (note.isTemporaryTask) {
-                batch.delete(noteRef);
-                return; // Chuyển sang note tiếp theo
-            }
-
-            let actualDuration = null;
-            let isOnTime = null;
-
-            if (note.startTime) {
-                const start = new Date(note.startTime);
-                actualDuration = Math.round((now - start) / 60000);
-            } else {
+            if (note.isTemporaryTask) { batch.delete(noteRef); return; }
+            let actualDuration = null; let isOnTime = null;
+            if (note.startTime) { actualDuration = Math.round((now - new Date(note.startTime)) / 60000); }
+            else {
                 const [hours, minutes] = note.time.split(':');
-                const start = new Date();
-                start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-                let diff = Math.round((now - start) / 60000);
-                actualDuration = diff > 0 ? diff : 0;
+                const start = new Date(); start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                actualDuration = Math.max(0, Math.round((now - start) / 60000));
             }
-
-            if (note.expectedDuration) {
-                isOnTime = actualDuration <= note.expectedDuration;
-            }
-
-            batch.update(noteRef, {
-                completed: true,
-                endTime: endTime,
-                actualDuration: actualDuration,
-                isOnTime: isOnTime
-            });
+            if (note.expectedDuration) isOnTime = actualDuration <= note.expectedDuration;
+            batch.update(noteRef, { completed: true, endTime: endTime, actualDuration: actualDuration, isOnTime: isOnTime });
         });
-
         try {
             await batch.commit();
-            const dayName = getDayName(targetDay);
-            // Thay thế {day} bằng tên ngày thực tế
-            showToast(lang.completeAllSuccess.replace('{day}', dayName), 'success');
-        } catch (error) {
-            showToast(lang.completeAllError, 'error');
-        }
+            showToast(`Đã hoàn thành tất cả công việc của ${getDayName(targetDay)}!`, 'success');
+        } catch (error) { showToast('Lỗi khi hoàn thành tất cả công việc.', 'error'); }
     }
 
     async function resetAllNotes() {
-        const lang = translations[currentLanguage]; // Lấy ngôn ngữ hiện tại
-
-        // 1. Xác định ngày cần xử lý
         const selectedDayFilter = document.getElementById("dayOfWeekSelect").value;
-        let targetDay;
-
-        if (selectedDayFilter === "all") {
-            targetDay = new Date().getDay();
-        } else {
-            targetDay = parseInt(selectedDayFilter);
-        }
-
-        const dayName = getDayName(targetDay);
-
-        // 2. Lọc các ghi chú thuộc ngày đó và ĐÃ hoàn thành
-        const notesToReset = notes.filter(note =>
-            note.dayOfWeek === targetDay && note.completed
-        );
-
-        if (notesToReset.length === 0) {
-            showToast(lang.noNotesToResetOnDay, 'info');
-            return;
-        }
-
-        // 3. Batch update
+        const targetDay = selectedDayFilter === "all" ? new Date().getDay() : parseInt(selectedDayFilter);
+        const notesToReset = notes.filter(note => note.dayOfWeek === targetDay && note.completed);
+        if (notesToReset.length === 0) { showToast('Không có công việc nào để đặt lại trong ngày này!', 'info'); return; }
         const batch = db.batch();
-
-        notesToReset.forEach(note => {
-            const noteRef = db.collection('notes').doc(note.id);
-
-            batch.update(noteRef, {
-                completed: false,
-                endTime: null,
-                actualDuration: null,
-                isOnTime: null,
-                startTime: null
-            });
-        });
-
+        notesToReset.forEach(note => { batch.update(db.collection('notes').doc(note.id), { completed: false, endTime: null, actualDuration: null, isOnTime: null, startTime: null }); });
         try {
             await batch.commit();
-            // Thay thế {day} bằng tên ngày
-            showToast(lang.resetAllSuccess.replace('{day}', dayName), 'success');
-        } catch (error) {
-            showToast(lang.resetAllError, 'error');
-        }
+            showToast(`Đã đặt lại (Bắt đầu ngày mới) cho ${getDayName(targetDay)}!`, 'success');
+        } catch (error) { showToast('Lỗi khi đặt lại công việc.', 'error'); }
     }
 
     function loadSettings() {
-        // Load số cột
-        const savedColumns = localStorage.getItem('noteColumns');
-        if (savedColumns) {
-            document.documentElement.style.setProperty('--notes-grid-columns', savedColumns);
-            noteColumnsSelect.value = savedColumns;
-        } else {
-            // MỚI: Mặc định dựa trên kích thước màn hình
-            let defaultColumns;
-            if (window.innerWidth >= 1024) {
-                defaultColumns = 3; // Desktop: 3 cột
-            } else if (window.innerWidth >= 768) {
-                defaultColumns = 2; // Tablet: 2 cột
-            } else {
-                defaultColumns = 1; // Mobile: 1 cột
-            }
-            document.documentElement.style.setProperty('--notes-grid-columns', defaultColumns);
-            noteColumnsSelect.value = defaultColumns;
+        const savedColumns = localStorage.getItem('noteColumns') || (window.innerWidth >= 1024 ? 3 : window.innerWidth >= 768 ? 2 : 1);
+        document.documentElement.style.setProperty('--notes-grid-columns', savedColumns);
+        noteColumnsSelect.value = savedColumns;
+
+        const savedBackgroundColor = localStorage.getItem('backgroundColor') || '#f8f9fa';
+        document.documentElement.style.setProperty('--body-bg-color', savedBackgroundColor);
+        backgroundColorInput.value = savedBackgroundColor;
+
+        currentLanguage = localStorage.getItem('language') || 'vi';
+        languageSelect.value = currentLanguage;
+
+        notificationTimeBeforeSelect.value = localStorage.getItem('notificationTimeBefore') || '5';
+        document.querySelector('.header h1').textContent = localStorage.getItem('appName') || 'Quản lý công việc';
+
+        if (currentLanguage !== 'vi' && window.autoTranslate) {
+            setTimeout(async () => {
+                await window.autoTranslate.autoTranslate(currentLanguage);
+                await translateAllSelects(); // ✅ THÊM: Dịch select options
+            }, 500);
         }
-
-        // Load màu nền
-        const savedBackgroundColor = localStorage.getItem('backgroundColor');
-        if (savedBackgroundColor) {
-            document.documentElement.style.setProperty('--body-bg-color', savedBackgroundColor);
-        } else {
-            document.documentElement.style.setProperty('--body-bg-color', '#f8f9fa');
-        }
-
-        // Load ngôn ngữ
-        const savedLanguage = localStorage.getItem('language');
-        if (savedLanguage) {
-            currentLanguage = savedLanguage;
-        } else {
-            currentLanguage = 'vi';
-        }
-
-        // Apply translations
-        applyTranslations();
-
-        // Load thời gian thông báo
-        const savedNotificationTime = localStorage.getItem('notificationTimeBefore');
-        if (savedNotificationTime !== null) {
-            notificationTimeBeforeSelect.value = savedNotificationTime;
-        } else {
-            notificationTimeBeforeSelect.value = '5';
-        }
-
-        // Load tên ứng dụng
-        const savedAppName = localStorage.getItem('appName');
-        if (savedAppName) {
-            document.querySelector('.header h1').textContent = savedAppName;
-        } else {
-            document.querySelector('.header h1').textContent = translations[currentLanguage].defaultAppName;
-        }
-
-        const today = new Date().getDay();
-        dayOfWeekSelect.value = today.toString();
     }
 
     loadSettings();
@@ -4417,41 +2570,53 @@ document.addEventListener("DOMContentLoaded", function () {
         const selectedAppName = appNameInput.value.trim();
         const selectedNotificationTime = notificationTimeBeforeSelect.value;
 
-        // --- PHẦN 1: XỬ LÝ LOCAL (TỨC THÌ) ---
-
-        // 1. Lưu vào localStorage
+        // Lưu vào localStorage
         localStorage.setItem('noteColumns', selectedColumns);
         localStorage.setItem('backgroundColor', selectedBackgroundColor);
         localStorage.setItem('language', selectedLanguage);
         localStorage.setItem('notificationTimeBefore', selectedNotificationTime);
         if (selectedAppName) {
             localStorage.setItem('appName', selectedAppName);
+            document.querySelector('.header h1').textContent = selectedAppName;
         } else {
             localStorage.removeItem('appName');
+            document.querySelector('.header h1').textContent = 'Châu Chí Kil';
         }
 
-        // 2. Áp dụng thay đổi giao diện NGAY LẬP TỨC
+        // Áp dụng thay đổi giao diện
         document.documentElement.style.setProperty('--notes-grid-columns', selectedColumns);
         document.documentElement.style.setProperty('--body-bg-color', selectedBackgroundColor);
 
         const languageChanged = currentLanguage !== selectedLanguage;
-        currentLanguage = selectedLanguage;
-        applyTranslations();
-        // updateDateTime(); // Không cần gọi cái này, nó tự chạy mỗi giây
+
+        // ✅ FIX: Đóng form và hiện thông báo NGAY LẬP TỨC, không bắt người dùng chờ
+        closeSettingsModal();
+        showToast('Đã lưu cài đặt!', 'success');
 
         if (languageChanged) {
+            currentLanguage = selectedLanguage;
+
+            if (selectedLanguage === 'vi') {
+                window.location.reload();
+                return;
+            }
+
+            showToast('Đang chuyển đổi ngôn ngữ...', 'info', 2000);
+
             renderFilterOptions();
             renderTagOptions();
             renderCurrentTagsList();
-            filterNotes();
+            loadNotes();
+
+            // Quá trình dịch chạy ngầm
+            await window.autoTranslate.autoTranslate(selectedLanguage);
+            await translateAllSelects();
+
+        } else {
+            loadNotes();
         }
 
-        // 3. Đóng modal và báo thành công NGAY (Không chờ server)
-        loadNotes();
-        closeSettingsModal();
-        showToast('toastSettingsSaved', 'success');
-
-        // --- PHẦN 2: ĐỒNG BỘ SERVER (CHẠY NGẦM) ---
+        // Đồng bộ lên Firestore
         if (currentUser) {
             const settingsData = {
                 noteColumns: parseInt(selectedColumns),
@@ -4461,22 +2626,21 @@ document.addEventListener("DOMContentLoaded", function () {
                 appName: selectedAppName || null
             };
 
-            // Không dùng 'await' để chặn giao diện, để nó chạy ngầm (Promise)
             db.collection('users').doc(currentUser.uid).set({
                 settings: settingsData
             }, { merge: true }).catch(error => {
-                // Chỉ log lỗi nếu thực sự có vấn đề, không làm phiền user
                 console.error("Silent sync error:", error);
             });
         }
     }
 
+
     function loadNotes() {
         const searchTerm = searchInput.value.toLowerCase();
         const filterValue = filterSelect.value;
-        const dayFilter = dayOfWeekSelect.value; // Lấy thêm bộ lọc ngày
+        const dayFilter = dayOfWeekSelect.value;
 
-        let filteredNotes = [...notes]; // Tạo bản sao từ toàn bộ ghi chú
+        let filteredNotes = [...notes];
 
         // 1. LỌC THEO NGÀY TRONG TUẦN
         if (dayFilter !== 'all') {
@@ -4501,12 +2665,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // 3. LỌC THEO TÌM KIẾM (Search)
         if (searchTerm) {
-            filteredNotes = filteredNotes.filter(
-                (note) =>
-                    note.title.toLowerCase().includes(searchTerm) ||
-                    note.content.toLowerCase().includes(searchTerm) ||
-                    (note.tag && tags.find(t => t.id === note.tag)?.name.toLowerCase().includes(searchTerm))
-            );
+            filteredNotes = filteredNotes.filter(note => {
+                const matchTitle = note.title.toLowerCase().includes(searchTerm);
+                const matchContent = note.content.toLowerCase().includes(searchTerm);
+                const noteTag = tags.find(t => t.id === note.tag);
+                const matchTag = noteTag && getTagName(noteTag).toLowerCase().includes(searchTerm);
+                return matchTitle || matchContent || matchTag;
+            });
         }
 
         // Render ra màn hình
@@ -4514,7 +2679,6 @@ document.addEventListener("DOMContentLoaded", function () {
         updateEmptyState(filteredNotes);
         checkAndScheduleNotifications(filteredNotes);
     }
-
 
     function openSettingsModal() {
         settingsModal.classList.add("active");
@@ -4541,7 +2705,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (savedAppName) {
             appNameInput.value = savedAppName;
         } else {
-            appNameInput.value = translations[currentLanguage].defaultAppName;
+            appNameInput.value = 'Công việc của tôi';
         }
     }
 
@@ -4550,19 +2714,10 @@ document.addEventListener("DOMContentLoaded", function () {
         document.body.style.overflow = "auto";
     }
 
-    function showToast(messageKey, type = 'info', duration = 3000) {
-        // Kiểm tra xem messageKey có phải là một key trong translations không
-        let message;
-        if (translations[currentLanguage][messageKey]) {
-            message = translations[currentLanguage][messageKey];
-        } else {
-            // Nếu không phải key, sử dụng trực tiếp làm message
-            message = messageKey;
-        }
-
+    function showToast(message, type = 'info', duration = 3000) {
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        toast.textContent = message;
+        toast.textContent = message; // Hiển thị trực tiếp message Tiếng Việt
 
         toastContainer.appendChild(toast);
 
@@ -4572,7 +2727,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 toast.remove();
             }, 500);
         }, duration);
+
+        // Gọi dịch tự động nếu đang không dùng Tiếng Việt
+        translateDynamicElement(toast);
     }
+
 
     firebase.auth().onAuthStateChanged((user) => {
         if (user) {
@@ -4594,99 +2753,51 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     async function linkPasswordProvider(newPassword) {
-        const lang = translations[currentLanguage]; // MỚI
-
-        if (!currentUser) {
-            showToast(lang.pleaseLoginFirst, 'error');
-            return false;
-        }
-
+        if (!currentUser) { showToast('Vui lòng đăng nhập trước!', 'error'); return false; }
         try {
             const signInMethods = await auth.fetchSignInMethodsForEmail(currentUser.email);
-
-            if (signInMethods.includes('password')) {
-                showToast(lang.accountHasPassword, 'info');
-                return false;
-            }
-
-            const credential = firebase.auth.EmailAuthProvider.credential(
-                currentUser.email,
-                newPassword
-            );
-
+            if (signInMethods.includes('password')) { showToast('Tài khoản đã có mật khẩu rồi!', 'info'); return false; }
+            const credential = firebase.auth.EmailAuthProvider.credential(currentUser.email, newPassword);
             await currentUser.linkWithCredential(credential);
-
             const userDocRef = db.collection('users').doc(currentUser.uid);
             const userDoc = await userDocRef.get();
-            const userData = userDoc.data();
-
-            let providers = userData.providers || [];
-            if (!providers.includes('password')) {
-                providers.push('password');
-                await userDocRef.update({ providers: providers });
-            }
-
-            showToast(lang.passwordCreatedSuccess, 'success');
+            let providers = userDoc.data().providers || [];
+            if (!providers.includes('password')) { providers.push('password'); await userDocRef.update({ providers: providers }); }
+            showToast('Đã tạo mật khẩu thành công! Bạn có thể đăng nhập bằng email/password.', 'success');
             return true;
-
         } catch (error) {
-            if (error.code === 'auth/weak-password') {
-                showToast(lang.weakPassword, 'error');
-            } else if (error.code === 'auth/email-already-in-use') {
-                showToast(lang.emailHasPassword, 'warning');
-            } else {
-                showToast(lang.errorCreatingPassword + error.message, 'error');
-            }
+            if (error.code === 'auth/weak-password') showToast('Mật khẩu quá yếu! Vui lòng dùng ít nhất 6 ký tự.', 'error');
+            else if (error.code === 'auth/email-already-in-use') showToast('Email này đã có mật khẩu!', 'warning');
+            else showToast('Lỗi tạo mật khẩu: ' + error.message, 'error');
             return false;
         }
     }
-
 
     const linkGoogleBtn = document.getElementById('linkGoogleBtn');
     if (linkGoogleBtn) {
         linkGoogleBtn.addEventListener('click', async () => {
-            const lang = translations[currentLanguage]; // MỚI
-
-            if (!currentUser) {
-                showToast(lang.pleaseLoginFirst, 'error');
-                return;
-            }
-
+            if (!currentUser) { showToast('Vui lòng đăng nhập trước!', 'error'); return; }
             try {
                 linkGoogleBtn.disabled = true;
-                linkGoogleBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> ${lang.linkingGoogle}`;
-
+                linkGoogleBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Đang liên kết...`;
                 const provider = new firebase.auth.GoogleAuthProvider();
                 await currentUser.linkWithPopup(provider);
-
                 const userDocRef = db.collection('users').doc(currentUser.uid);
                 const userDoc = await userDocRef.get();
-                const userData = userDoc.data();
-                let providers = userData.providers || [];
-
-                if (!providers.includes('google.com')) {
-                    providers.push('google.com');
-                    await userDocRef.update({ providers: providers });
-                }
-
-                showToast(lang.googleLinkedSuccess, 'success');
+                let providers = userDoc.data().providers || [];
+                if (!providers.includes('google.com')) { providers.push('google.com'); await userDocRef.update({ providers: providers }); }
+                showToast('Đã liên kết với Google thành công!', 'success');
                 document.getElementById('linkGoogleSection').style.display = 'none';
-
             } catch (error) {
-                if (error.code === 'auth/credential-already-in-use') {
-                    showToast(lang.googleAlreadyLinked, 'warning');
-                } else if (error.code === 'auth/popup-closed-by-user') {
-                    showToast(lang.authPopupClosed, 'warning');
-                } else {
-                    showToast(lang.errorLinking + error.message, 'error');
-                }
+                if (error.code === 'auth/credential-already-in-use') showToast('Tài khoản Google này đã được liên kết với người dùng khác!', 'warning');
+                else if (error.code === 'auth/popup-closed-by-user') showToast('Bạn đã đóng cửa sổ xác thực!', 'warning');
+                else showToast('Lỗi liên kết: ' + error.message, 'error');
             } finally {
                 linkGoogleBtn.disabled = false;
-                linkGoogleBtn.innerHTML = `<i class="fab fa-google"></i> ${lang.linkGoogleBtnText}`;
+                linkGoogleBtn.innerHTML = `<i class="fab fa-google"></i> Liên kết với Google`;
             }
         });
     }
-
 
     async function checkAndCreateUserDocument(user) {
         if (!user) return;
@@ -4791,6 +2902,35 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    const selectAllBtn = document.getElementById('selectAllDaysBtn');
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', function () {
+            const checkboxes = document.querySelectorAll('input[name="dayOfWeek"]');
+
+            // ✅ FIX: Kiểm tra checkboxes tồn tại
+            if (!checkboxes || checkboxes.length === 0) {
+                console.error('Day checkboxes not found');
+                return;
+            }
+
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+
+            checkboxes.forEach(cb => {
+                if (cb) cb.checked = !allChecked;
+            });
+
+            const text = allChecked ? 'Chọn tất cả' : 'Bỏ chọn tất cả';
+            const icon = allChecked ? 'fas fa-check-double' : 'fas fa-times-circle';
+
+            this.innerHTML = `<i class="${icon}"></i> ${text}`;
+
+                    if (currentLanguage !== 'vi' && window.autoTranslate) {
+            window.autoTranslate.translateNew(taskItem, currentLanguage);
+        }
+
+        });
+    }
+
     /* ==========================================
    REPORTS MANAGEMENT FUNCTIONS
    ========================================== */
@@ -4862,20 +3002,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
     function formatReportDate(date) {
-        const lang = translations[currentLanguage]; // ⬅️ THÊM DÒNG NÀY
         const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
-
-        if (diffMins < 1) return lang.justNow;
-        if (diffMins < 60) return `${diffMins} ${lang.minutesAgo}`;
-        if (diffHours < 24) return `${diffHours} ${lang.hoursAgo}`;
-        if (diffDays < 7) return `${diffDays} ${lang.daysAgo}`;
-
-        const locale = currentLanguage === 'vi' ? 'vi-VN' : 'en-US';
-        return date.toLocaleDateString(locale);
+        const diffMins = Math.floor((now - date) / 60000);
+        const diffHours = Math.floor((now - date) / 3600000);
+        const diffDays = Math.floor((now - date) / 86400000);
+        if (diffMins < 1) return 'Vừa xong';
+        if (diffMins < 60) return `${diffMins} phút trước`;
+        if (diffHours < 24) return `${diffHours} giờ trước`;
+        if (diffDays < 7) return `${diffDays} ngày trước`;
+        return date.toLocaleDateString('vi-VN');
     }
 
 
@@ -4976,150 +3111,54 @@ document.addEventListener("DOMContentLoaded", function () {
         const recipientEmail = document.getElementById('recipientEmail').value.trim();
         const message = document.getElementById('reportMessage').value.trim();
         const submitBtn = document.getElementById('sendReportSubmitBtn');
-        const lang = translations[currentLanguage]; // ⬅️ THÊM DÒNG NÀY
-
-        if (!recipientEmail) {
-            showToast(lang.enterRecipientEmail, 'warning');
-            document.getElementById('recipientEmail').focus();
-            return;
-        }
-
-        // Validate email format
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(recipientEmail)) {
-            showToast(lang.invalidEmail, 'error');
-            document.getElementById('recipientEmail').focus();
-            return;
-        }
-
-        // Hiển thị loading
+        if (!recipientEmail) { showToast('Vui lòng nhập email người nhận!', 'warning'); document.getElementById('recipientEmail').focus(); return; }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) { showToast('Email không hợp lệ!', 'error'); document.getElementById('recipientEmail').focus(); return; }
         const originalHTML = submitBtn.innerHTML;
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> ${lang.sendingReport}`;
-
+        submitBtn.disabled = true; submitBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Đang gửi...`;
         try {
-            // Kiểm tra email có tồn tại trong hệ thống không
-            const usersSnapshot = await db.collection('users')
-                .where('email_lowercase', '==', recipientEmail.toLowerCase()) // ⬅️ TÌM TRÊN TRƯỜNG CHỮ THƯỜNG
-                .limit(1)
-                .get();
-
-            if (usersSnapshot.empty) {
-                showToast(`❌ ${lang.emailNotRegistered}`, 'error');
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalHTML;
-                document.getElementById('recipientEmail').focus();
-                return;
-            }
-
+            const usersSnapshot = await db.collection('users').where('email_lowercase', '==', recipientEmail.toLowerCase()).limit(1).get();
+            if (usersSnapshot.empty) { showToast(`❌ Email này chưa đăng ký tài khoản trong hệ thống!`, 'error'); submitBtn.disabled = false; submitBtn.innerHTML = originalHTML; document.getElementById('recipientEmail').focus(); return; }
             const recipientUser = usersSnapshot.docs[0].data();
             const recipientUserId = usersSnapshot.docs[0].id;
-
-            // Không cho gửi cho chính mình
-            if (recipientUserId === currentUser.uid) {
-                showToast(`⚠️ ${lang.cannotSendToSelf}`, 'warning');
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalHTML;
-                document.getElementById('recipientEmail').value = '';
-                document.getElementById('recipientEmail').focus();
-                return;
-            }
-
-            // Tạo báo cáo
-            const reportData = generateReportData();
-
-            const newReport = {
-                fromUserId: currentUser.uid,
-                fromUserName: currentUser.displayName || 'User',
-                fromUserEmail: currentUser.email,
-                toUserId: recipientUserId,
-                toUserEmail: recipientEmail,
-                toUserName: recipientUser.name || recipientUser.email,
-                reportData: reportData,
-                message: message || null,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                status: 'unread'
-            };
-
+            if (recipientUserId === currentUser.uid) { showToast(`⚠️ Không thể gửi báo cáo cho chính mình!`, 'warning'); submitBtn.disabled = false; submitBtn.innerHTML = originalHTML; document.getElementById('recipientEmail').value = ''; document.getElementById('recipientEmail').focus(); return; }
+            const newReport = { fromUserId: currentUser.uid, fromUserName: currentUser.displayName || 'User', fromUserEmail: currentUser.email, toUserId: recipientUserId, toUserEmail: recipientEmail, toUserName: recipientUser.name || recipientUser.email, reportData: generateReportData(), message: message || null, createdAt: firebase.firestore.FieldValue.serverTimestamp(), status: 'unread' };
             await db.collection('reports').add(newReport);
-
-            showToast(`✅ ${lang.reportSentSuccess} ${recipientUser.name || recipientEmail}!`, 'success');
+            showToast(`✅ Đã gửi báo cáo thành công đến ${recipientUser.name || recipientEmail}!`, 'success');
             closeSendReportModal();
-
-        } catch (error) {
-            showToast(`❌ ${lang.errorSendingReport}: ${error.message}`, 'error');
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = originalHTML;
-        }
+        } catch (error) { showToast(`❌ Lỗi khi gửi báo cáo: ${error.message}`, 'error'); submitBtn.disabled = false; submitBtn.innerHTML = originalHTML; }
     }
 
     async function openReportingDashboard() {
-        const lang = translations[currentLanguage];
         reportingDashboardModal.classList.add('active');
         document.body.style.overflow = 'hidden';
-
-        // Hiển thị loading ban đầu
-        submittedReportsTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center;">${lang.loadingData}</td></tr>`;
-
-        // ✅ KHÔNG CẦN FETCH NỮA - Dữ liệu đã có sẵn từ onSnapshot
+        submittedReportsTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center;">Đang tải dữ liệu...</td></tr>`;
         const now = new Date();
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - now.getDay());
-        startOfWeek.setHours(0, 0, 0, 0);
-
-        // Lọc các báo cáo trong tuần này
-        const weeklyReports = receivedReports.filter(report => {
-            const reportDate = report.createdAt?.toDate?.();
-            return reportDate && reportDate >= startOfWeek;
-        });
-
-        // Render bảng
+        const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay()); startOfWeek.setHours(0, 0, 0, 0);
+        const weeklyReports = receivedReports.filter(report => { const reportDate = report.createdAt?.toDate?.(); return reportDate && reportDate >= startOfWeek; });
         renderSubmittedReportsTable(weeklyReports);
     }
 
     function renderSubmittedReportsTable(reportsToRender) {
         submittedReportsTableBody.innerHTML = '';
-        const lang = translations[currentLanguage];
-
         if (!reportsToRender || reportsToRender.length === 0) {
-            submittedReportsTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center;">${lang.noReportsThisWeek}</td></tr>`;
+            submittedReportsTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center;">Chưa có báo cáo nào trong tuần này.</td></tr>`;
             return;
         }
-
         reportsToRender.forEach(report => {
             const data = report.reportData;
             const completionRate = data.totalTasks > 0 ? Math.round((data.completedTasks / data.totalTasks) * 100) : 0;
             const onTimeRate = data.completedTasks > 0 ? Math.round((data.onTimeTasks / data.completedTasks) * 100) : 0;
-
             const row = document.createElement('tr');
             row.innerHTML = `
-            <td>
-                <div class="user-info">${report.fromUserName}</div>
-                <div class="user-email">${report.fromUserEmail}</div>
-            </td>
-            <td>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div class="completion-rate-bar">
-                        <div class="completion-rate-fill" style="width: ${completionRate}%;"></div>
-                    </div>
-                    <span>${completionRate}%</span>
-                </div>
-            </td>
-            <td style="color: ${onTimeRate >= 80 ? '#10b981' : '#f59e0b'}; font-weight: bold;">${onTimeRate}%</td>
-            <td>${data.avgCompletionTime} ${lang.minutesPerTask}</td>
-            <td>
-                <button class="view-detail-btn">${lang.details}</button>
-            </td>
-        `;
-
-            row.querySelector('.view-detail-btn').addEventListener('click', () => {
-                openViewReportModal(report);
-            });
-
+        <td><div class="user-info">${report.fromUserName}</div><div class="user-email">${report.fromUserEmail}</div></td>
+        <td><div style="display: flex; align-items: center; gap: 8px;"><div class="completion-rate-bar"><div class="completion-rate-fill" style="width: ${completionRate}%;"></div></div><span>${completionRate}%</span></div></td>
+        <td style="color: ${onTimeRate >= 80 ? '#10b981' : '#f59e0b'}; font-weight: bold;">${onTimeRate}%</td>
+        <td>${data.avgCompletionTime} phút/công việc</td>
+        <td><button class="view-detail-btn">Chi tiết</button></td>`;
+            row.querySelector('.view-detail-btn').addEventListener('click', () => openViewReportModal(report));
             submittedReportsTableBody.appendChild(row);
         });
     }
-
 
     // Đóng Dashboard
     function closeReportingDashboard() {
@@ -5163,76 +3202,26 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    // index.js
-
-    // THAY THẾ TOÀN BỘ HÀM NÀY
     function renderReportDetails(reportData) {
         const detailsContainer = document.getElementById('reportDetailStats');
-        const lang = translations[currentLanguage];
-
-        // Tạo một mảng các ngày trong tuần để đảm bảo thứ tự đúng
         const daysOfWeekOrder = [0, 1, 2, 3, 4, 5, 6];
-
         detailsContainer.innerHTML = `
-        <h4 style="margin-bottom: 10px;">📊 ${lang.statisticsTitle}: ${reportData.period}</h4>
-        
-        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 10px;">
-            <div style="background: #dbeafe; padding: 10px; border-radius: 10px; text-align: center;">
-                <i class="fas fa-tasks" style="font-size: 1.6rem; color: #3b82f6;"></i>
-                <p style="font-size: 1.5rem; font-weight: bold; margin: 10px 0;">${reportData.totalTasks}</p>
-                <p style="color: #666; font-size: 0.8rem;">${lang.totalTasks}</p>
-            </div>
-            <div style="background: #d1fae5; padding: 10px; border-radius: 10px; text-align: center;">
-                <i class="fas fa-check-circle" style="font-size: 1.6rem; color: #10b981;"></i>
-                <p style="font-size: 1.5rem; font-weight: bold; margin: 10px 0;">${reportData.completedTasks}</p>
-                <p style="color: #666; font-size: 0.8rem;">${lang.completedTasks}</p>
-            </div>
-            <div style="background: #fef3c7; padding: 10px; border-radius: 10px; text-align: center;">
-                <i class="fas fa-clock" style="font-size: 1.6rem; color: #f59e0b;"></i>
-                <p style="font-size: 1.5rem; font-weight: bold; margin: 10px 0;">${reportData.onTimeTasks}</p>
-                <p style="color: #666; font-size: 0.8rem;">${lang.onTimeTasks}</p>
-            </div>
-            <div style="background: #fee2e2; padding: 10px; border-radius: 10px; text-align: center;">
-                <i class="fas fa-exclamation-circle" style="font-size: 1.6rem; color: #ef4444;"></i>
-                <p style="font-size: 1.5rem; font-weight: bold; margin: 10px 0;">${reportData.lateTasks}</p>
-                <p style="color: #666; font-size: 0.8rem;">${lang.lateTasks}</p>
-            </div>
-        </div>
-
-        <div style="background: #f3f4f6; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
-            <p style="font-weight: 600; margin-bottom: 5px;">
-                <i class="fas fa-hourglass-half"></i> ${lang.avgCompletionTime}
-            </p>
-            <p style="font-size: 1.1rem; color: #4f46e5; font-weight: bold;">${reportData.avgCompletionTime} ${lang.timeUnit}</p>
-        </div>
-
-        <h5 style="margin-bottom: 10px;"><i class="fas fa-tags"></i> ${lang.analysisByTag}:</h5>
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-            ${Object.entries(reportData.tasksByTag).map(([tag, data]) => `
-                <div style="background: white; padding: 8px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-weight: 500;">${tag}</span>
-                    <span style="color: #666; font-size: 0.8rem;">
-                        ${data.completed}/${data.total} ${lang.tasksDone} • ${data.onTime} ${lang.onTimeTasks.toLowerCase()}
-                    </span>
-                </div>
-            `).join('')}
-        </div>
-
-        <h5 style="margin: 15px 0 10px;"><i class="fas fa-calendar-week"></i> ${lang.distributionByDay}:</h5>
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-            ${daysOfWeekOrder.map(dayIndex => {
-            const count = reportData.tasksByDay[dayIndex] || 0;
-            return `
-                <div style="background: white; padding: 6px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-weight: 400; font-size: 0.8rem;">${getDayName(dayIndex)}</span>
-                    <span style="background: #667eea; color: white; padding: 4px 8px; border-radius: 15px; font-size: 0.8rem;">
-                        ${count} ${lang.tasksDone}
-                    </span>
-                </div>
-                `;
-        }).join('')}
-        </div>
-    `;
+    <h4 style="margin-bottom: 10px;">📊 Thống kê: ${reportData.period}</h4>
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 10px;">
+        <div style="background: #dbeafe; padding: 10px; border-radius: 10px; text-align: center;"><i class="fas fa-tasks" style="font-size: 1.6rem; color: #3b82f6;"></i><p style="font-size: 1.5rem; font-weight: bold; margin: 10px 0;">${reportData.totalTasks}</p><p style="color: #666; font-size: 0.8rem;">Tổng task</p></div>
+        <div style="background: #d1fae5; padding: 10px; border-radius: 10px; text-align: center;"><i class="fas fa-check-circle" style="font-size: 1.6rem; color: #10b981;"></i><p style="font-size: 1.5rem; font-weight: bold; margin: 10px 0;">${reportData.completedTasks}</p><p style="color: #666; font-size: 0.8rem;">Hoàn thành</p></div>
+        <div style="background: #fef3c7; padding: 10px; border-radius: 10px; text-align: center;"><i class="fas fa-clock" style="font-size: 1.6rem; color: #f59e0b;"></i><p style="font-size: 1.5rem; font-weight: bold; margin: 10px 0;">${reportData.onTimeTasks}</p><p style="color: #666; font-size: 0.8rem;">Đúng hạn</p></div>
+        <div style="background: #fee2e2; padding: 10px; border-radius: 10px; text-align: center;"><i class="fas fa-exclamation-circle" style="font-size: 1.6rem; color: #ef4444;"></i><p style="font-size: 1.5rem; font-weight: bold; margin: 10px 0;">${reportData.lateTasks}</p><p style="color: #666; font-size: 0.8rem;">Trễ hạn</p></div>
+    </div>
+    <div style="background: #f3f4f6; padding: 15px; border-radius: 10px; margin-bottom: 15px;"><p style="font-weight: 600; margin-bottom: 5px;"><i class="fas fa-hourglass-half"></i> Thời gian hoàn thành trung bình</p><p style="font-size: 1.1rem; color: #4f46e5; font-weight: bold;">${reportData.avgCompletionTime} phút</p></div>
+    <h5 style="margin-bottom: 10px;"><i class="fas fa-tags"></i> Phân tích theo thẻ:</h5>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+        ${Object.entries(reportData.tasksByTag).map(([tag, data]) => `<div style="background: white; padding: 8px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center;"><span style="font-weight: 500;">${tag}</span><span style="color: #666; font-size: 0.8rem;">${data.completed}/${data.total} task • ${data.onTime} đúng hạn</span></div>`).join('')}
+    </div>
+    <h5 style="margin: 15px 0 10px;"><i class="fas fa-calendar-week"></i> Phân bố theo ngày:</h5>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+        ${daysOfWeekOrder.map(dayIndex => `<div style="background: white; padding: 6px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center;"><span style="font-weight: 400; font-size: 0.8rem;">${getDayName(dayIndex)}</span><span style="background: #667eea; color: white; padding: 4px 8px; border-radius: 15px; font-size: 0.8rem;">${reportData.tasksByDay[dayIndex] || 0} task</span></div>`).join('')}
+    </div>`;
     }
 
     function closeViewReportModal() {
@@ -5247,44 +3236,20 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     async function deleteReport() {
-        const lang = translations[currentLanguage];
         if (!currentViewingReport) return;
-
-        if (!confirm(lang.confirmDeleteReport)) return;
-
-        try {
-            await db.collection('reports').doc(currentViewingReport.id).delete();
-
-            // ✅ XÓA LOCAL NGAY (Optional - onSnapshot sẽ tự cập nhật)
-            receivedReports = receivedReports.filter(r => r.id !== currentViewingReport.id);
-
-            showToast(lang.reportDeleted, 'success');
-            closeViewReportModal();
-        } catch (error) {
-            showToast(lang.errorDeletingReport, 'error');
-        }
+        openConfirmModal('Bạn có chắc chắn muốn xóa báo cáo này không?', 'delete_report');
     }
 
 
+
     async function markReportAsRead() {
-        const lang = translations[currentLanguage];
         if (!currentViewingReport) return;
-
         try {
-            await db.collection('reports').doc(currentViewingReport.id).update({
-                status: 'read'
-            });
-
-            // ✅ CẬP NHẬT LOCAL NGAY (Optional - onSnapshot sẽ tự cập nhật)
+            await db.collection('reports').doc(currentViewingReport.id).update({ status: 'read' });
             const index = receivedReports.findIndex(r => r.id === currentViewingReport.id);
-            if (index !== -1) {
-                receivedReports[index].status = 'read';
-            }
-
-            showToast(lang.markedAsRead, 'info');
-        } catch (error) {
-            console.error('Error marking as read:', error);
-        }
+            if (index !== -1) receivedReports[index].status = 'read';
+            showToast('Đã đánh dấu đọc!', 'info');
+        } catch (error) { console.error('Error marking as read:', error); }
     }
 
 
@@ -5327,7 +3292,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         const noteTagObject = tags.find(t => t.id === note.tag);
-        const tagName = noteTagObject ? getTagName(noteTagObject) : translations[currentLanguage].undefinedTag;
+        const tagName = noteTagObject ? getTagName(noteTagObject) : 'Không xác định';
         const tagIcon = noteTagObject ? noteTagObject.icon : '';
         const tagColor = noteTagObject ? (noteTagObject.color || '#e0e0e0') : '#e0e0e0';
         const tagTextColor = getContrastYIQ(tagColor);
@@ -5360,18 +3325,18 @@ document.addEventListener("DOMContentLoaded", function () {
             <div class="note-header">
                 <h3 class="note-title">${note.title}</h3>
                 <div class="note-actions">
-                    <button class="qr-btn" data-id="${note.id}" title="${translations[currentLanguage].generateQR || 'Tạo mã QR'}">
+                    <button class="qr-btn" data-id="${note.id}" title="Tạo mã QR">
                         <i class="fas fa-qrcode"></i>
                     </button>
                     ${!note.completed ? `
-                        <button class="complete-btn-header" data-id="${note.id}" title="${translations[currentLanguage].completeBtn || 'Hoàn thành'}">
+                        <button class="complete-btn-header" data-id="${note.id}" title="Hoàn thành">
                             <i class="fas fa-check"></i>
                         </button>
                     ` : ''}
-                    <button class="edit-btn" data-id="${note.id}" title="${translations[currentLanguage].editBtn || 'Sửa'}">
+                    <button class="edit-btn" data-id="${note.id}" title="Sửa">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="delete-btn" data-id="${note.id}" title="${translations[currentLanguage].deleteBtn || 'Xóa'}">
+                    <button class="delete-btn" data-id="${note.id}" ttitle="Xóa">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -5391,45 +3356,25 @@ document.addEventListener("DOMContentLoaded", function () {
 
         notesContainer.appendChild(noteElement);
         attachNoteEventListeners(noteElement, note.id);
+        translateDynamicElement(noteElement);
     }
 
-    // ==========================================
-    // UPDATE SINGLE NOTE (Chỉ cập nhật nội dung)
-    // ==========================================
     function updateSingleNote(note) {
         const noteCard = document.querySelector(`[data-id="${note.id}"]`)?.closest('.note-card');
-        if (!noteCard) {
-            renderSingleNote(note); // Nếu không tìm thấy thì render mới
-            return;
-        }
-
-        // Cập nhật class completed
+        if (!noteCard) { renderSingleNote(note); return; }
         noteCard.classList.toggle('completed', note.completed);
-
-        // Cập nhật title
         const titleEl = noteCard.querySelector('.note-title');
         if (titleEl) titleEl.textContent = note.title;
-
-        // Cập nhật content
         const contentEl = noteCard.querySelector('.note-text');
         if (contentEl) contentEl.textContent = note.content;
-
-        // Cập nhật progress
         if (note.subTasks?.length > 0) {
             const progress = calculateProgress(note.subTasks);
             const progressEl = noteCard.querySelector('.note-progress');
             if (progressEl) {
                 progressEl.innerHTML = `<i class="fas fa-tasks"></i> ${progress}%`;
-                progressEl.setAttribute('data-progress',
-                    progress === 0 ? '0' :
-                        progress === 100 ? 'complete' :
-                            progress <= 33 ? 'low' :
-                                progress <= 66 ? 'medium' : 'high'
-                );
+                progressEl.setAttribute('data-progress', progress === 0 ? '0' : progress === 100 ? 'complete' : progress <= 33 ? 'low' : progress <= 66 ? 'medium' : 'high');
             }
         }
-
-        // Cập nhật time status
         const timeStatus = getNoteTimeStatus(note);
         const timeTooltip = getTimeStatusText(note, timeStatus);
         const dateEl = noteCard.querySelector('.note-date');
@@ -5438,22 +3383,20 @@ document.addEventListener("DOMContentLoaded", function () {
             dateEl.setAttribute('data-status', timeStatus);
             dateEl.setAttribute('data-tooltip', timeTooltip);
         }
-
-        // Cập nhật nút hoàn thành
         const completeBtn = noteCard.querySelector('.complete-btn-header');
-        if (note.completed && completeBtn) {
-            completeBtn.remove();
-        } else if (!note.completed && !completeBtn) {
+        if (note.completed && completeBtn) { completeBtn.remove(); }
+        else if (!note.completed && !completeBtn) {
             const actionsDiv = noteCard.querySelector('.note-actions');
             const qrBtn = actionsDiv.querySelector('.qr-btn');
             const newCompleteBtn = document.createElement('button');
             newCompleteBtn.className = 'complete-btn-header';
             newCompleteBtn.setAttribute('data-id', note.id);
-            newCompleteBtn.title = translations[currentLanguage].completeBtn || 'Hoàn thành';
+            newCompleteBtn.title = 'Hoàn thành';
             newCompleteBtn.innerHTML = '<i class="fas fa-check"></i>';
             actionsDiv.insertBefore(newCompleteBtn, qrBtn.nextSibling);
             attachCompleteListener(newCompleteBtn);
         }
+        translateDynamicElement(noteCard);
     }
 
     // ==========================================
@@ -5477,8 +3420,9 @@ document.addEventListener("DOMContentLoaded", function () {
             deleteBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 noteToDeleteId = noteId;
-                openConfirmModal(null, 'delete');
+                openConfirmModal('Bạn có chắc chắn muốn xóa công việc này không?', 'delete');
             });
+
         }
 
         // Edit button
@@ -5512,8 +3456,30 @@ document.addEventListener("DOMContentLoaded", function () {
             noteContent.addEventListener('click', (e) => {
                 if (e.target.closest('.note-actions')) return;
                 const note = notes.find(n => n.id === noteId);
-                openViewNoteModal(note);
+                if (note) { // ✅ KIỂM TRA note tồn tại
+                    openViewNoteModal(note);
+                }
             });
+        }
+    }
+
+    /**
+ * Dịch tất cả các select options trong trang
+ */
+    async function translateAllSelects() {
+        if (currentLanguage === 'vi' || !window.autoTranslate) return;
+
+        const selects = document.querySelectorAll('select');
+
+        for (const select of selects) {
+            const options = select.querySelectorAll('option');
+
+            for (const option of options) {
+                if (option.hasAttribute('data-no-translate')) continue;
+                if (option.disabled && !option.textContent.trim()) continue; // Bỏ qua separator
+
+                await window.autoTranslate.translateElement(option, currentLanguage);
+            }
         }
     }
 
@@ -5528,9 +3494,10 @@ document.addEventListener("DOMContentLoaded", function () {
             if (note.isTemporaryTask) {
                 noteToDeleteId = noteId;
                 elementToAnimate = completeBtn.closest('.note-card');
-                openConfirmModal(null, 'complete_temp');
+                openConfirmModal('Task này sẽ bị xóa vĩnh viễn sau khi hoàn thành. Tiếp tục?', 'complete_temp');
                 return;
             }
+
 
             const now = new Date();
             const endTime = now.toISOString();

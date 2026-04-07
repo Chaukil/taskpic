@@ -2862,6 +2862,10 @@ input[type="time"]:focus {
     color: #dc2626 !important;
 }
 
+#confirmModal {
+    z-index: 999999 !important;
+}
+
 @media (max-width: 767px) {
     .time-reports-summary {
         grid-template-columns: repeat(2, 1fr);
@@ -2979,7 +2983,7 @@ input[type="time"]:focus {
     top: 20px;
     /* Hoặc bottom: 20px; nếu bạn muốn ở dưới */
     right: 20px;
-    z-index: 1000;
+    z-index: 999999 !important;
     /* Đảm bảo toast nằm trên cùng */
     display: flex;
     flex-direction: column;
@@ -3944,4 +3948,75 @@ input[type="time"]:focus {
     width: 100% !important;
     flex: 1 1 100% !important;
   }
+}
+
+/* ==========================================
+   DAYS OF WEEK CHECKBOX GROUP
+   ========================================== */
+.days-of-week-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+    padding: 10px;
+    background: #ffffff;
+    border-radius: 10px;
+    border: 1.5px solid #e5e7eb;
+}
+
+.day-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: white;
+    border-radius: 8px;
+    border: 1.5px solid #e5e7eb;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+}
+
+.day-checkbox-item:hover {
+    border-color: #667eea;
+    background: #f0f4ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.15);
+}
+
+.day-checkbox-item input[type="checkbox"] {
+    width: 17px;
+    height: 17px;
+    cursor: pointer;
+    accent-color: #667eea;
+    flex-shrink: 0;
+}
+
+.day-checkbox-item input[type="checkbox"]:checked + .day-label {
+    font-weight: 600;
+    color: #667eea;
+}
+
+.day-checkbox-item:has(input:checked) {
+    border-color: #667eea;
+    color: white;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.day-checkbox-item:has(input:checked) .day-label {
+    color: white;
+}
+
+.day-label {
+    font-size: 0.75rem;
+    color: #333;
+    transition: color 0.2s;
+}
+
+/* Responsive cho mobile */
+@media (max-width: 480px) {
+    .days-of-week-container {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+    
 }

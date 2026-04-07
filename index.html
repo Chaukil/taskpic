@@ -104,7 +104,7 @@
 
         <!-- Hàng 1: Tìm kiếm và Lọc -->
         <div class="search-filter-row">
-          <input type="text" id="searchInput" placeholder="Tìm kiếm ghi chú..." class="search-input" />
+          <input type="text" id="searchInput" placeholder="Tìm kiếm..." class="search-input" />
 
           <select id="dayOfWeekSelect" class="filter-select">
             <option value="all">Tất cả các ngày</option>
@@ -118,7 +118,7 @@
           </select>
 
           <select id="filterSelect" class="filter-select">
-            <option value="all">Tất cả ghi chú</option>
+            <option value="all">Tất cả công việc</option>
             <option value="incomplete">Chưa hoàn thành</option>
             <option value="completed">Đã hoàn thành</option>
             <option value="overdue">Trễ giờ</option>
@@ -161,14 +161,14 @@
 
     <div id="emptyState" class="empty-state">
       <i class="fas fa-notes-medical"></i>
-      <h3>Không có ghi chú</h3>
-      <p>Thêm ghi chú đầu tiên của bạn bằng cách nhấp vào nút "Thêm"</p>
+      <h3>Không có công việc</h3>
+      <p>Thêm công việc đầu tiên của bạn bằng cách nhấp vào nút "Thêm"</p>
     </div>
 
     <div id="addNoteModal" class="modal-overlay">
       <div class="modal">
         <div class="modal-header">
-          <h3 class="modal-title" id="modalTitle">Ghi chú mới</h3>
+          <h3 class="modal-title" id="modalTitle">Công việc mới</h3>
           <button id="closeModalBtn" class="modal-close">
             <i class="fas fa-times"></i>
           </button>
@@ -179,18 +179,51 @@
             <label for="noteTitle" class="form-label">Tiêu đề</label>
             <input type="text" id="noteTitle" class="form-input" required />
           </div>
+          <!-- ✅ PHẢI CÓ ĐOẠN NÀY -->
           <div class="form-group">
-            <label for="noteDayOfWeek" id="noteDayOfWeekLabel" class="form-label">Ngày trong tuần</label>
-            <select id="noteDayOfWeek" class="form-input">
-              <option value="0">Chủ Nhật</option>
-              <option value="1">Thứ Hai</option>
-              <option value="2">Thứ Ba</option>
-              <option value="3">Thứ Tư</option>
-              <option value="4">Thứ Năm</option>
-              <option value="5">Thứ Sáu</option>
-              <option value="6">Thứ Bảy</option>
-            </select>
+            <label class="form-label">
+              <span>Chọn ngày trong tuần (có thể chọn nhiều)</span>
+              <button type="button" id="selectAllDaysBtn" class="inline-btn" style="background: #10b981;">
+                <i class="fas fa-check-double"></i> Chọn tất cả
+              </button>
+            </label>
+            <div id="daysOfWeekContainer" class="days-of-week-container">
+              <label class="day-checkbox-item">
+                <input type="checkbox" name="dayOfWeek" value="1">
+                <span class="day-label">Thứ Hai</span>
+              </label>
+              <label class="day-checkbox-item">
+                <input type="checkbox" name="dayOfWeek" value="2">
+                <span class="day-label">Thứ Ba</span>
+              </label>
+              <label class="day-checkbox-item">
+                <input type="checkbox" name="dayOfWeek" value="3">
+                <span class="day-label">Thứ Tư</span>
+              </label>
+              <label class="day-checkbox-item">
+                <input type="checkbox" name="dayOfWeek" value="4">
+                <span class="day-label">Thứ Năm</span>
+              </label>
+              <label class="day-checkbox-item">
+                <input type="checkbox" name="dayOfWeek" value="5">
+                <span class="day-label">Thứ Sáu</span>
+              </label>
+              <label class="day-checkbox-item">
+                <input type="checkbox" name="dayOfWeek" value="6">
+                <span class="day-label">Thứ Bảy</span>
+              </label>
+              <label class="day-checkbox-item">
+                <input type="checkbox" name="dayOfWeek" value="0">
+                <span class="day-label">Chủ Nhật</span>
+              </label>
+            </div>
+            <p class="help-text">
+              <i class="fas fa-info-circle"></i>
+              Chọn nhiều ngày sẽ tạo nhiều ghi chú giống nhau cho từng ngày
+            </p>
           </div>
+
+
           <div class="form-group">
             <label for="noteContent" class="form-label">Nội dung</label>
             <textarea id="noteContent" class="form-input form-textarea" required></textarea>
@@ -237,14 +270,14 @@
               <input type="checkbox" id="isTemporaryTask"
                 style="width: 20px; height: 20px; cursor: pointer; accent-color: #ef4444; flex-shrink: 0;">
               <span id="temporaryTaskLabel" style="font-size: 0.85rem; color: #666; white-space: nowrap;"
-                title="Ghi chú sẽ tự động xóa khi hoàn thành">
-                Task tạm thời
+                title="Công việc sẽ tự động xóa khi hoàn thành">
+                Công việc tạm thời
               </span>
             </label>
 
             <!-- Button bên phải -->
             <button type="submit" class="submit-btn" id="submitNoteBtn" style="margin: 0; flex: 1; max-width: 200px;">
-              Lưu ghi chú
+              Lưu công việc
             </button>
           </div>
         </form>
@@ -305,7 +338,7 @@
           </div>
 
           <p class="confirmation-text">
-            Bạn có chắc chắn muốn xóa ghi chú này không?
+            Bạn có chắc chắn muốn xóa công việc này không?
           </p>
           <div class="confirmation-buttons">
             <button id="cancelDeleteBtn" class="confirmation-btn cancel-btn">
@@ -322,14 +355,14 @@
     <div id="manageTagsModal" class="modal-overlay">
       <div class="modal">
         <div class="modal-header">
-          <h3 class="modal-title">Quản lý Thẻ Ghi Chú</h3>
+          <h3 class="modal-title">Quản lý Thẻ Công Việc</h3>
           <button id="closeManageTagsModalBtn" class="modal-close">
             <i class="fas fa-times"></i>
           </button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label for="newTagName" class="form-label">Tên Thẻ Mới/Sửa</label>
+            <label for="newTagName" class="form-label">Tên Thẻ (Tiếng việt)</label>
             <input type="text" id="newTagName" class="form-input" placeholder="Ví dụ: Du lịch" />
           </div>
           <div class="form-group">
@@ -359,7 +392,7 @@
     <div id="qrScannerModal" class="modal-overlay">
       <div class="modal qr-modal">
         <div class="modal-header">
-          <h3 class="modal-title" id="qrScannerTitle">Quét mã QR ghi chú</h3>
+          <h3 class="modal-title" id="qrScannerTitle">Quét mã QR công việc</h3>
           <button id="closeQRScannerBtn" class="modal-close">
             <i class="fas fa-times"></i>
           </button>
@@ -403,7 +436,7 @@
     <div id="qrGeneratorModal" class="modal-overlay">
       <div class="modal qr-modal">
         <div class="modal-header">
-          <h3 class="modal-title" id="qrGeneratorTitle">Mã QR của ghi chú</h3>
+          <h3 class="modal-title" id="qrGeneratorTitle">Mã QR của công việc</h3>
           <button id="closeQRGeneratorBtn" class="modal-close">
             <i class="fas fa-times"></i>
           </button>
@@ -443,14 +476,14 @@
     <div id="addFromQRModal" class="modal-overlay">
       <div class="modal">
         <div class="modal-header">
-          <h3 class="modal-title" id="addFromQRTitle">Xác nhận thêm ghi chú</h3>
+          <h3 class="modal-title" id="addFromQRTitle">Xác nhận thêm công việc</h3>
           <button id="closeAddFromQRBtn" class="modal-close">
             <i class="fas fa-times"></i>
           </button>
         </div>
         <div class="modal-body">
           <p style="color: #6b7280; margin-bottom: 20px;" id="qrConfirmMessage">
-            Ghi chú được quét từ mã QR. Vui lòng xem lại thông tin:
+            Công việc được quét từ mã QR. Vui lòng xem lại thông tin:
           </p>
 
           <form id="addFromQRForm">
@@ -557,7 +590,7 @@
               style="flex: 0 0 120px; display: none; height: 37px;">
 
             <!-- Nút làm mới -->
-            <button id="refreshReportBtn" class="action-btn" 
+            <button id="refreshReportBtn" class="action-btn"
               style="flex: 0 0 auto; height: 37px; padding: 0 15px; margin: 0 !important; min-width: 110px !important;">
               <i class="fas fa-sync-alt"></i> <span id="refreshBtnText">Làm mới</span>
             </button>
@@ -622,10 +655,10 @@
         <div class="modal-body">
           <div class="form-group">
             <label for="appNameInput" id="appNameLabel" class="form-label">Tên ứng dụng:</label>
-            <input type="text" id="appNameInput" class="form-input" placeholder="Ghi chú của tôi" />
+            <input type="text" id="appNameInput" class="form-input" placeholder="Công việc của tôi" />
           </div>
           <div class="form-group">
-            <label for="noteColumns" class="form-label">Số cột hiển thị ghi chú:</label>
+            <label for="noteColumns" class="form-label">Số cột hiển thị công việc:</label>
             <select id="noteColumns" class="form-input">
               <option value="1">1 cột</option>
               <option value="2">2 cột</option>
@@ -637,13 +670,24 @@
             <label for="backgroundColor" class="form-label">Màu nền trang web:</label>
             <input type="color" id="backgroundColor" class="form-input color-input" value="#f8f9fa" />
           </div>
+          <!-- TÌM ĐOẠN NÀY TRONG index.html VÀ THAY THẾ -->
           <div class="form-group">
-            <label for="languageSelect" class="form-label">Ngôn ngữ:</label>
+            <label for="languageSelect" class="form-label">Ngôn ngữ (Language):</label>
             <select id="languageSelect" class="form-input">
               <option value="vi">Tiếng Việt</option>
               <option value="en">English</option>
+              <option value="ja">日本語 (Japanese)</option>
+              <option value="ko">한국어 (Korean)</option>
+              <option value="zh-CN">简体中文 (Chinese Simplified)</option>
+              <option value="zh-TW">繁體中文 (Chinese Traditional)</option>
+              <option value="fr">Français (French)</option>
+              <option value="es">Español (Spanish)</option>
+              <option value="de">Deutsch (German)</option>
+              <option value="ru">Русский (Russian)</option>
+              <option value="th">ไทย (Thai)</option>
             </select>
           </div>
+
           <div class="form-group">
             <label for="notificationTimeBefore" id="notificationTimeBeforeLabel" class="form-label">Thông báo trước
               (phút):</label>
@@ -655,6 +699,16 @@
               <option value="30">30 phút</option>
               <option value="60">60 phút</option>
             </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Quản lý bộ nhớ dịch</label>
+            <button type="button" id="clearTranslationCacheBtn" class="action-btn"
+              style="background: #ef4444; color: white; width: 100%;">
+              <i class="fas fa-trash"></i> Xóa bộ nhớ dịch (Reset)
+            </button>
+            <p class="help-text" style="margin-top: 5px; color: #666; font-size: 0.8rem;">
+              Xóa cache sẽ làm mới lại tất cả bản dịch. Hữu ích khi cập nhật nội dung.
+            </p>
           </div>
           <button id="saveSettingsBtn" class="submit-btn small-btn">Lưu Cài đặt</button>
         </div>
@@ -779,6 +833,7 @@
 
   <!-- 5. Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="./auto-translate.js"></script>
 
   <!-- 6. Script của bạn CUỐI CÙNG -->
   <script src="./index.js"></script>
